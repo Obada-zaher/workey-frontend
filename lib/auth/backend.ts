@@ -7,9 +7,13 @@ export class AuthBackendError extends Error {
   constructor(public readonly status: number, message: string, public readonly code?: string, public readonly errors?: ValidationErrors, public readonly retryAfterSeconds?: number) { super(message); }
 }
 
-function endpoint(path: string) {
+function endpoint(path: string, query?: Record<string, string | number | boolean | undefined>) {
   if (!authApiUrl) throw new AuthBackendError(503, "Authentication is temporarily unavailable.");
-  try { return new URL(path.replace(/^\//, ""), `${authApiUrl.replace(/\/$/, "")}/`); } catch { throw new AuthBackendError(503, "Authentication is temporarily unavailable."); }
+  try {
+    const url = new URL(path.replace(/^\//, ""), `${authApiUrl.replace(/\/$/, "")}/`);
+    Object.entries(query ?? {}).forEach(([key, value]) => { if (value !== undefined && value !== "") url.searchParams.set(key, String(value)); });
+    return url;
+  } catch { throw new AuthBackendError(503, "Authentication is temporarily unavailable."); }
 }
 
 function errorsFrom(value: unknown): ValidationErrors | undefined {
@@ -18,10 +22,10 @@ function errorsFrom(value: unknown): ValidationErrors | undefined {
   return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
-export async function authBackendRequest<T>(path: string, options: { method: "GET" | "POST" | "PUT"; body?: object; token?: string; language?: string; }) {
+export async function authBackendRequest<T>(path: string, options: { method: "GET" | "POST" | "PUT"; body?: object; token?: string; language?: string; query?: Record<string, string | number | boolean | undefined>; }) {
   let response: Response;
   try {
-    response = await fetch(endpoint(path), { method: options.method, cache: "no-store", headers: { Accept: "application/json", "Accept-Language": options.language === "ar" ? "ar" : "en", ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) }, ...(options.body ? { body: JSON.stringify(options.body) } : {}) });
+    response = await fetch(endpoint(path, options.query), { method: options.method, cache: "no-store", headers: { Accept: "application/json", "Accept-Language": options.language === "ar" ? "ar" : "en", ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) }, ...(options.body ? { body: JSON.stringify(options.body) } : {}) });
   } catch { throw new AuthBackendError(503, "Authentication is temporarily unavailable."); }
   let payload: Partial<ApiEnvelope<T>>;
   try { payload = await response.json() as Partial<ApiEnvelope<T>>; } catch { throw new AuthBackendError(502, "Authentication is temporarily unavailable."); }
