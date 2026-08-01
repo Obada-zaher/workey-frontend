@@ -176,7 +176,7 @@ export function JobFilterRenderer({ onAutocompleteLabel, onChange, schema, value
         if (definition.type === "single_select") return <SingleSelect definition={definition} key={definition.key} onChange={(next) => onChange(definition.key, next)} value={value} />;
         if (definition.type === "boolean") return <BooleanFilter definition={definition} key={definition.key} onChange={(next) => onChange(definition.key, next)} value={value} />;
         if (definition.type === "range") return <RangeFilter definition={definition} key={definition.key} onChange={(next) => onChange(definition.key, next)} value={value} />;
-        if (definition.type === "autocomplete") return <AutocompleteFilter definition={definition} key={definition.key} onChange={(next) => onChange(definition.key, next)} onSelected={(label) => onAutocompleteLabel?.(definition.key, label)} value={value} />;
+        if (definition.type === "autocomplete") return <AutocompleteFilter definition={definition} key={`${definition.key}-${String(value ?? "")}`} onChange={(next) => onChange(definition.key, next)} onSelected={(label) => onAutocompleteLabel?.(definition.key, label)} value={value} />;
         return null;
       })}
     </div>

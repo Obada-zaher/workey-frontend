@@ -1,59 +1,111 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { routes } from "@/config/routes";
-import type { HomeJob, Job } from "@/lib/api/types";
+import { CompanyIdentity } from "@/components/jobs/company-identity";
+import type { HomeJob, Job, JobRecommendation, Skill } from "@/lib/api/types";
 
-function formatDate(value: string | null): string | null {
-  return value && !Number.isNaN(Date.parse(value))
-    ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(value))
-    : null;
-}
+type JobCardVariant = "default" | "compact" | "explore";
+type RecommendationDetails = Pick<JobRecommendation, "score" | "matched_skills" | "missing_required_skills" | "reasons">;
 
 function isDetailedJob(job: HomeJob | Job): job is Job {
   return "skills" in job;
 }
 
-export function JobCard({
-  job,
-  variant = "default",
-}: {
-  job: HomeJob | Job;
-  variant?: "default" | "compact";
-}) {
-  const detailed = isDetailedJob(job);
-  const companyName = job.company?.name ?? "Company";
-  const date = formatDate(job.published_at);
+function validDate(value: unknown): string | null {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : null;
+}
+
+function formatDate(value: unknown): string | null {
+  const date = validDate(value);
+  return date ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(new Date(date)) : null;
+}
+
+function localizedLabel(value: unknown): string | null {
+  return value && typeof value === "object" && "value" in value && typeof value.value === "string" && value.value.trim() ? value.value : null;
+}
+
+function safeSkills(value: unknown): Skill[] {
+  return Array.isArray(value) ? value.filter((skill): skill is Skill => Boolean(skill) && typeof skill === "object" && typeof (skill as Skill).name === "string") : [];
+}
+
+function formatSalary(value: unknown): string | null {
+  const numeric = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : Number.NaN;
+  return Number.isFinite(numeric) ? new Intl.NumberFormat("en", { maximumFractionDigits: 0 }).format(numeric) : null;
+}
+
+function salaryLabel(job: Job): string | null {
+  const minimum = formatSalary(job.salary_min);
+  const maximum = formatSalary(job.salary_max);
+  if (minimum && maximum) return `Salary range: ${minimum}–${maximum}`;
+  if (minimum) return `Salary from ${minimum}`;
+  if (maximum) return `Salary up to ${maximum}`;
+  return null;
+}
+
+function percentage(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  const normalized = value <= 1 ? value * 100 : value;
+  return Math.round(Math.min(100, Math.max(0, normalized)));
+}
+
+function RecommendationSummary({ recommendation }: { recommendation: RecommendationDetails }) {
+  const score = percentage(recommendation.score);
+  const matched = safeSkills(recommendation.matched_skills).slice(0, 3);
+  const missing = safeSkills(recommendation.missing_required_skills).slice(0, 2);
+  const reason = Array.isArray(recommendation.reasons) ? recommendation.reasons.find((value) => typeof value === "string" && value.trim()) : null;
+  if (score === null && !matched.length && !missing.length && !reason) return null;
 
   return (
-    <article className={`job-card ui-card ui-card--interactive flex h-full flex-col${variant === "compact" ? " job-card--compact" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div aria-hidden="true" className="radius-medium flex size-11 shrink-0 items-center justify-center bg-accent font-semibold text-accent-foreground">
-          {companyName.slice(0, 2).toUpperCase()}
+    <div className="job-card__recommendation">
+      {score !== null ? <div className="job-card__match"><span>Match: {score}%</span><span aria-label={`Match score ${score}%`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={score} className="job-card__match-bar" role="progressbar"><span style={{ width: `${score}%` }} /></span></div> : null}
+      {matched.length ? <p><strong>Matches:</strong> {matched.map((skill) => skill.name).join(" · ")}</p> : null}
+      {missing.length ? <p><strong>Develop:</strong> {missing.map((skill) => skill.name).join(" · ")}</p> : null}
+      {reason ? <p className="job-card__reason">{reason}</p> : null}
+    </div>
+  );
+}
+
+export function JobCard({ job, recommendation, variant = "default" }: { job: HomeJob | Job; recommendation?: RecommendationDetails; variant?: JobCardVariant }) {
+  const detailed = isDetailedJob(job);
+  const companyName = typeof job.company?.name === "string" && job.company.name.trim() ? job.company.name : "Company";
+  const logoUrl = job.company && "logo_url" in job.company && typeof job.company.logo_url === "string" ? job.company.logo_url : null;
+  const workMode = localizedLabel(job.work_mode);
+  const employmentType = localizedLabel(job.employment_type);
+  const experience = detailed ? localizedLabel(job.experience_level) : null;
+  const publishedAt = validDate(job.published_at);
+  const published = formatDate(job.published_at);
+  const deadlineAt = detailed ? validDate(job.application_deadline) : null;
+  const deadline = detailed ? formatDate(job.application_deadline) : null;
+  const skills = detailed ? safeSkills(job.skills).slice(0, 3) : [];
+  const salary = detailed ? salaryLabel(job) : null;
+  const detailHref = `/jobs/${job.id}`;
+
+  return (
+    <article className={`job-card ui-card ui-card--interactive job-card--${variant}`}>
+      <div className="job-card__identity">
+        <CompanyIdentity logoUrl={logoUrl} name={companyName} />
+        <div className="job-card__title-group">
+          <p className="job-card__company">{companyName}</p>
+          <h3 className="job-card__title"><Link aria-label={`View ${job.title} at ${companyName}`} href={detailHref}>{job.title}</Link></h3>
         </div>
-        <Badge variant="primary">{job.work_mode.value}</Badge>
       </div>
-      <h3 className="type-heading-3 mt-5 text-text-primary">
-        <Link className="text-inherit no-underline" href={`${routes.explore}/${job.id}`}>
-          {job.title}
-        </Link>
-      </h3>
-      <p className="type-body-small mt-2 font-medium text-text-secondary">{companyName}</p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Badge>{job.employment_type.value}</Badge>
-        {detailed && job.experience_level ? <Badge>{job.experience_level.value}</Badge> : null}
+      <div className="job-card__content">
+        <div className="job-card__meta">
+          {job.location ? <span>{job.location}</span> : null}
+          {workMode ? <Badge variant="primary">{workMode}</Badge> : null}
+          {employmentType ? <Badge>{employmentType}</Badge> : null}
+          {experience ? <Badge>{experience}</Badge> : null}
+        </div>
+        {skills.length ? <p className="job-card__skills">{skills.map((skill) => skill.name).join(" · ")}</p> : null}
+        {salary ? <p className="job-card__salary">{salary}</p> : null}
+        {recommendation ? <RecommendationSummary recommendation={recommendation} /> : null}
       </div>
-      {detailed && job.skills.length ? (
-        <p className="type-body-small mt-4 text-text-muted">
-          {job.skills.slice(0, 3).map((skill) => skill.name).join(" \u00b7 ")}
-        </p>
-      ) : null}
-      <div className="mt-auto pt-5 type-body-small text-text-muted">
-        {job.location ? <p>{job.location}</p> : null}
-        {date ? <time dateTime={job.published_at ?? undefined}>Published {date}</time> : null}
-      </div>
-      <Link className="type-body-small mt-5 font-semibold" href={`${routes.explore}/${job.id}`}>
-        View opportunity
-      </Link>
+      <footer className="job-card__footer">
+        <div className="job-card__dates">
+          {published && publishedAt ? <time dateTime={publishedAt}>Published {published}</time> : null}
+          {deadline && deadlineAt ? <time className={detailed && job.is_application_deadline_passed ? "job-card__deadline job-card__deadline--passed" : "job-card__deadline"} dateTime={deadlineAt}>{detailed && job.is_application_deadline_passed ? `Deadline passed ${deadline}` : `Deadline ${deadline}`}</time> : null}
+        </div>
+        <Link className="job-card__action" href={detailHref}>View opportunity <span aria-hidden="true">→</span></Link>
+      </footer>
     </article>
   );
 }

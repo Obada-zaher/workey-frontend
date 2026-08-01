@@ -18,6 +18,13 @@ export const metadata: Metadata = {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 function first(value: string | string[] | undefined) { return typeof value === "string" ? value : undefined; }
+function recommendationErrorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.code === "unauthorized" || error.code === "forbidden") return "Your session has expired. Please sign in again to refresh recommendations.";
+    if (error.code === "network" || error.code === "server" || error.code === "service_unavailable") return "Recommendations are temporarily unavailable. Please try again shortly.";
+  }
+  return "Recommendations are temporarily unavailable.";
+}
 
 export default async function ExplorePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, user] = await Promise.all([searchParams, getCurrentUser()]);
@@ -41,7 +48,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
     try {
       recommendations = await getRecommendedJobs();
     } catch (error) {
-      recommendationsError = error instanceof Error ? error.message : "Recommendations are temporarily unavailable.";
+      recommendationsError = recommendationErrorMessage(error);
     }
   }
 

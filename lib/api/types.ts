@@ -8,26 +8,13 @@ export interface HomeJob { id: number; title: string; company: HomeCompany; loca
 export interface FeaturedCompany { id: number; name: string; logo_url: string | null; industry: string | null; location: string | null; open_jobs_count: number; }
 export interface AppFeature { key: string; title: string; description: string; }
 export interface GuestHome { viewer: GuestViewer; hero: GuestHero; latest_jobs: HomeJob[]; featured_companies: FeaturedCompany[]; app_features: AppFeature[]; }
-export interface Company { id: number; name: string; industry: string | null; location: string | null; }
+export interface Company { id: number; name: string; industry: string | null; location: string | null; logo_url?: string | null; }
 export interface Skill { id: number; name: string; slug: string; }
-export interface Job { id: number; company_id: number; title: string; department: string | null; description: string; employment_type: LocalizedValue; experience_level: LocalizedValue | null; location: string | null; work_mode: LocalizedValue; published_at: string | null; application_deadline: string | null; has_application_deadline: boolean; is_application_deadline_passed: boolean; is_accepting_applications: boolean; can_apply: boolean; company: Company | null; skills: Skill[]; }
+export interface Job { id: number; company_id: number; title: string; department: string | null; description: string; employment_type: LocalizedValue; experience_level: LocalizedValue | null; location: string | null; work_mode: LocalizedValue; published_at: string | null; application_deadline: string | null; has_application_deadline: boolean; is_application_deadline_passed: boolean; is_accepting_applications: boolean; can_apply: boolean; company: Company | null; skills: Skill[]; salary_min?: string | number | null; salary_max?: string | number | null; }
 export interface PaginationMeta { current_page: number; last_page: number; per_page: number; total: number; }
 export interface PaginatedJobs { data: Job[]; meta: PaginationMeta; }
 export type JobsQueryValue = string | number | boolean | undefined;
-export interface JobsQuery {
-  [parameter: string]: JobsQueryValue;
-  search?: string;
-  location?: string;
-  skill?: string;
-  experience_level?: string;
-  employment_type?: string;
-  work_mode?: string;
-  accepting_applications?: boolean;
-  sort_by?: string;
-  sort_direction?: "asc" | "desc";
-  per_page?: number;
-  page?: number;
-}
+export interface JobsQuery { [parameter: string]: JobsQueryValue; }
 
 export type JobFilterPrimitive = string | number | boolean;
 export type JobFilterOptionValue = string | number;

@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { JobFilterDrawer } from "@/components/jobs/job-filter-drawer";
 import { JobFilterRenderer } from "@/components/jobs/job-filter-renderer";
 import { JobCard } from "@/components/jobs/job-card";
-import { SectionSkeleton } from "@/components/feedback/section-skeleton";
-import { SectionState } from "@/components/feedback/section-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api/errors";
@@ -41,7 +40,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isValidJob(value: unknown): value is Job {
-  return isRecord(value) && typeof value.id === "number";
+  return isRecord(value)
+    && typeof value.id === "number"
+    && typeof value.title === "string"
+    && value.title.trim().length > 0
+    && isRecord(value.work_mode)
+    && typeof value.work_mode.value === "string"
+    && isRecord(value.employment_type)
+    && typeof value.employment_type.value === "string";
+}
+
+function isValidPaginationMeta(value: unknown): value is PaginationMeta {
+  return isRecord(value)
+    && typeof value.current_page === "number"
+    && typeof value.last_page === "number"
+    && typeof value.per_page === "number"
+    && typeof value.total === "number"
+    && value.current_page >= 1
+    && value.last_page >= 1
+    && value.per_page >= 1
+    && value.total >= 0;
 }
 
 function uniqueJobs(items: readonly unknown[]): Job[] {
@@ -67,6 +85,15 @@ function normalizeRecommendations(value: unknown): JobRecommendation[] {
   return recommendations;
 }
 
+function uniqueRecommendations(items: JobRecommendation[]): JobRecommendation[] {
+  const seen = new Set<number>();
+  return items.filter((recommendation) => {
+    if (seen.has(recommendation.job.id)) return false;
+    seen.add(recommendation.job.id);
+    return true;
+  });
+}
+
 function cloneFilters(filters: AppliedJobFilters): AppliedJobFilters {
   return Object.fromEntries(Object.entries(filters).map(([key, value]) => [key, value && typeof value === "object" ? { ...value } : value]));
 }
@@ -84,10 +111,24 @@ function paginationPages(current: number, last: number) {
 function errorMessage(error: unknown) {
   if (error instanceof ApiError) {
     if (error.code === "validation") return "One of the selected search values is no longer valid.";
+    if (error.code === "unauthorized" || error.code === "forbidden") return "Your session has expired. Please sign in again to continue.";
+    if (error.code === "invalid_json") return "Jobs returned an unexpected response. Please try again.";
     if (error.code === "network" || error.code === "server" || error.code === "service_unavailable") return "Jobs are temporarily unavailable. Please try again shortly.";
     return error.message;
   }
   return "We could not update the opportunities right now.";
+}
+
+function JobResultsSkeleton({ cards = 3 }: { cards?: number }) {
+  return <div aria-hidden="true" className="grid gap-4 md:grid-cols-2">{Array.from({ length: cards }, (_, index) => <div className="job-card-skeleton skeleton" key={index} />)}</div>;
+}
+
+function EmptyPublicResults({ hasCriteria, onClear }: { hasCriteria: boolean; onClear: () => void }) {
+  return <div className="ui-card ui-card--muted text-center"><p className="type-heading-3 text-text-primary">{hasCriteria ? "No opportunities match your current filters" : "No opportunities are available right now."}</p><p className="type-body-small mt-2 text-text-secondary">{hasCriteria ? "Clear the search or filters to see all current opportunities." : "Please check back soon as approved roles are published."}</p>{hasCriteria ? <Button className="mt-4" onClick={onClear} size="small" type="button" variant="outline">Clear filters</Button> : null}</div>;
+}
+
+function EmptyRecommendations() {
+  return <div className="ui-card ui-card--muted text-center"><p className="type-heading-3 text-text-primary">No personalized recommendations are available yet.</p><p className="type-body-small mt-2 text-text-secondary">Complete more of your profile or explore current opportunities while we find a better match.</p><div className="mt-4 flex flex-wrap justify-center gap-3"><Link className="ui-button ui-button--outline ui-button--small" href={routes.profile}>Complete your profile</Link><Link className="ui-button ui-button--primary ui-button--small" href={routes.explore}>Explore all jobs</Link></div></div>;
 }
 
 function SearchControl({ initialSearch, onApply }: { initialSearch: string; onApply: (search: string, replace: boolean) => void }) {
@@ -220,9 +261,10 @@ export function JobsExplorer({ authenticated, initialRecommendations, initialRec
   const selectedSort = activeTab === "latest" ? "newest" : availableSortOptions.some((option) => option.key === sortFromUrl) ? sortFromUrl : availableSortOptions.find((option) => option.default)?.key ?? availableSortOptions[0]?.key ?? "";
   const urlFilters = useMemo(() => normalizeJobFilters(schema, readJobFilters(schema, searchParams)), [schema, searchParams]);
   const state = useMemo<ExploreUrlState>(() => ({ tab: activeTab, search: searchParams.get("search") ?? "", sort: selectedSort, page: pageFrom(searchParams.get("page")), filters: urlFilters }), [activeTab, searchParams, selectedSort, urlFilters]);
-  const recommendations = useMemo(() => normalizeRecommendations(initialRecommendations), [initialRecommendations]);
+  const recommendations = useMemo(() => uniqueRecommendations(normalizeRecommendations(initialRecommendations)), [initialRecommendations]);
   const filtersEnabled = activeTab !== "for-you";
   const chips = useMemo(() => activeChips(schema, state.filters, autocompleteLabels), [autocompleteLabels, schema, state.filters]);
+  const hasAppliedFilters = useMemo(() => Object.keys(buildJobFilterQuery(schema, state.filters)).length > 0, [schema, state.filters]);
 
   const navigate = useCallback((next: ExploreUrlState, replace = false, scrollResults = false) => {
     const params = new URLSearchParams();
@@ -267,6 +309,7 @@ export function JobsExplorer({ authenticated, initialRecommendations, initialRec
     try {
       const response = await getPublicJobs(buildJobsQuery(schema, { search: state.search, filters: state.filters, sort: activeTab === "latest" ? "newest" : state.sort || null, page: state.page, perPage: PAGE_SIZE }), controller.signal);
       if (id !== requestId.current) return;
+      if (!Array.isArray(response.data) || !isValidPaginationMeta(response.meta)) throw new ApiError("Jobs returned an unexpected response.", "invalid_json");
       setJobs(uniqueJobs(response.data));
       setMeta(response.meta);
     } catch (error) {
@@ -306,6 +349,7 @@ export function JobsExplorer({ authenticated, initialRecommendations, initialRec
   function updateFilters(filters: AppliedJobFilters, replace = false) { navigate({ ...state, filters: normalizeJobFilters(schema, filters), page: 1 }, replace); }
   function changeFilter(key: string, value: AppliedJobFilterValue) { updateFilters({ ...state.filters, [key]: value }); }
   function resetFilters() { updateFilters(defaultJobFilters(schema)); }
+  function clearPublicCriteria() { navigate({ ...state, search: "", filters: defaultJobFilters(schema), page: 1 }); }
   function removeFilter(key: string) { updateFilters({ ...state.filters, [key]: defaultJobFilters(schema)[key] }); }
   function openMobileFilters() { setDraftFilters(cloneFilters(state.filters)); setMobileFiltersOpen(true); }
   function updateDraft(key: string, value: AppliedJobFilterValue) { setDraftFilters((current) => normalizeJobFilters(schema, { ...current, [key]: value })); }
@@ -338,7 +382,7 @@ export function JobsExplorer({ authenticated, initialRecommendations, initialRec
         {filtersEnabled && chips.length ? <div aria-label="Applied filters" className="explore-shell__applied-filters">{chips.map((chip) => <button aria-label={`Remove ${chip.label} filter`} key={chip.key} onClick={() => removeFilter(chip.key)} type="button">{chip.label}<span aria-hidden="true">×</span></button>)}<button className="explore-shell__clear-filters" onClick={resetFilters} type="button">Clear all</button></div> : null}
         <div aria-busy={showPublicResults ? loadingJobs || isPending : isPending} aria-live="polite" className="explore-shell__results" id="explore-results" ref={resultsRef}>
           <p className="sr-only">{showPublicResults ? loadingJobs ? "Loading opportunities" : jobsError ? "Job search could not be updated" : meta ? `${meta.total} opportunities available` : "" : initialRecommendationsError ? "Recommendations could not be loaded" : ""}</p>
-          {activeTab === "for-you" ? isPending ? <SectionSkeleton cards={3} className="md:grid-cols-2 xl:grid-cols-3" /> : initialRecommendationsError ? <SectionState description={initialRecommendationsError} title="Recommendations are temporarily unavailable" /> : recommendations.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{uniqueJobs(recommendations.map((recommendation) => recommendation.job)).map((job) => <JobCard job={job} key={job.id} />)}</div> : <SectionState description="Complete more of your profile and check back as suitable roles become available." title="No recommendations available" /> : loadingJobs ? <SectionSkeleton cards={PAGE_SIZE} className="md:grid-cols-2 xl:grid-cols-3" /> : jobsError ? <div className="ui-card ui-card--muted"><p className="type-body text-text-primary">{jobsError}</p><Button className="mt-4" onClick={() => void loadJobs()} type="button" variant="outline">Try again</Button></div> : jobs.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{jobs.map((job) => <JobCard job={job} key={job.id} />)}</div> : <SectionState description={state.search ? "Try a broader search or clear the current search." : "There are no current opportunities to show."} resetHref={state.search ? routes.explore : undefined} title={state.search ? "No jobs match this search" : "No jobs available"} />}
+          {activeTab === "for-you" ? isPending ? <JobResultsSkeleton /> : initialRecommendationsError ? <div className="ui-card ui-card--muted"><p className="type-heading-3 text-text-primary">Recommendations are temporarily unavailable</p><p className="type-body-small mt-2 text-text-secondary">{initialRecommendationsError}</p><Button className="mt-4" onClick={() => router.refresh()} size="small" type="button" variant="outline">Retry recommendations</Button></div> : recommendations.length ? <div className="grid gap-4 md:grid-cols-2">{recommendations.map((recommendation) => <JobCard job={recommendation.job} key={recommendation.job.id} recommendation={recommendation} variant="explore" />)}</div> : <EmptyRecommendations /> : loadingJobs ? <JobResultsSkeleton cards={PAGE_SIZE} /> : jobsError ? <div className="ui-card ui-card--muted"><p className="type-heading-3 text-text-primary">Jobs are temporarily unavailable</p><p className="type-body-small mt-2 text-text-secondary">{jobsError}</p><Button className="mt-4" onClick={() => void loadJobs()} size="small" type="button" variant="outline">Retry jobs</Button></div> : jobs.length ? <div className="grid gap-4 md:grid-cols-2">{jobs.map((job) => <JobCard job={job} key={job.id} variant="explore" />)}</div> : <EmptyPublicResults hasCriteria={Boolean(state.search.trim() || hasAppliedFilters)} onClear={clearPublicCriteria} />}
         </div>
         {showPublicResults && meta && meta.last_page > 1 ? <nav aria-label="Job results pages" className="explore-shell__pagination"><Button disabled={loadingJobs || meta.current_page <= 1} onClick={() => navigate({ ...state, page: state.page - 1 }, false, true)} size="small" type="button" variant="outline">Previous</Button><span className="type-body-small text-text-secondary">Showing {firstResult}–{lastResult} of {meta.total}</span><div className="hidden items-center gap-2 sm:flex">{pages.map((page) => <Button aria-current={page === meta.current_page ? "page" : undefined} disabled={loadingJobs} key={page} onClick={() => navigate({ ...state, page }, false, true)} size="small" type="button" variant={page === meta.current_page ? "primary" : "outline"}>{page}</Button>)}</div><Button disabled={loadingJobs || meta.current_page >= meta.last_page} onClick={() => navigate({ ...state, page: state.page + 1 }, false, true)} size="small" type="button" variant="outline">Next</Button></nav> : null}
       </section>
