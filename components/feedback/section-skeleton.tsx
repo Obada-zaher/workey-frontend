@@ -1,0 +1,1 @@
+export function SectionSkeleton({ cards = 3, className = "" }: { cards?: number; className?: string }) { return <div className={`grid gap-4 md:grid-cols-3${className ? ` ${className}` : ""}`}>{Array.from({ length: cards }, (_, index) => <div className="skeleton min-h-56" key={index} />)}</div>; }

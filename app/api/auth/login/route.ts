@@ -1,0 +1,15 @@
+import { NextRequest, NextResponse } from "next/server";
+import { AuthBackendError, authBackendRequest, isJobSeeker } from "@/lib/auth/backend";
+import { sessionCookieName, sessionCookieOptions, setPendingVerification } from "@/lib/auth/server";
+import type { LoginData } from "@/lib/auth/types";
+
+export const dynamic = "force-dynamic";
+const noStore = { "Cache-Control": "no-store, private" };
+function errorResponse(error: unknown, email?: string, returnTo?: string) { const authError = error instanceof AuthBackendError ? error : new AuthBackendError(503, "Authentication is temporarily unavailable."); const message = authError.status === 401 ? "The email or password is incorrect." : authError.status === 429 ? "Too many attempts. Please wait before trying again." : authError.status >= 500 ? "Authentication is temporarily unavailable. Please try again shortly." : authError.code === "USER_SUSPENDED" ? "This account is unavailable. Please contact support." : authError.code === "EMAIL_NOT_VERIFIED" ? "Verify your email before signing in." : authError.message; const response = NextResponse.json({ message, code: authError.code, errors: authError.errors }, { status: authError.status, headers: noStore }); if (authError.code === "EMAIL_NOT_VERIFIED" && email) setPendingVerification(response, email, { required: true, delivery_channel: "", sent: false, expires_in_seconds: 0, resend_after_seconds: 0 }, returnTo); return response; }
+
+export async function POST(request: NextRequest) {
+  let body: unknown; try { body = await request.json(); } catch { return NextResponse.json({ message: "Please provide an email address and password." }, { status: 400, headers: noStore }); }
+  if (!body || typeof body !== "object" || typeof (body as Record<string, unknown>).email !== "string" || typeof (body as Record<string, unknown>).password !== "string" || ((body as Record<string, unknown>).returnTo !== undefined && typeof (body as Record<string, unknown>).returnTo !== "string")) return NextResponse.json({ message: "Please provide an email address and password." }, { status: 400, headers: noStore });
+  const input = body as Record<string, unknown>;
+  try { const result = await authBackendRequest<LoginData>("auth/login", { method: "POST", body: { email: input.email, password: input.password }, language: request.headers.get("accept-language") ?? undefined }); if (!result.token || !isJobSeeker(result.user)) { if (result.token) { try { await authBackendRequest<null>("auth/logout", { method: "POST", token: result.token }); } catch {} } return NextResponse.json({ message: "This sign-in is only available to job-seeker accounts.", code: "ROLE_NOT_SUPPORTED" }, { status: 403, headers: noStore }); } const response = NextResponse.json({ data: { user: result.user } }, { headers: noStore }); response.cookies.set(sessionCookieName, result.token, sessionCookieOptions); return response; } catch (error) { return errorResponse(error, input.email as string, typeof input.returnTo === "string" ? input.returnTo : undefined); }
+}

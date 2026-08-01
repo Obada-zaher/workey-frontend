@@ -1,0 +1,16 @@
+import type { AuthenticatedUser, JobSeekerProfileDetail, LoginInput, PasswordResetMetadata, RegisterJobSeekerInput, ResendVerificationMetadata, ValidationErrors } from "./types";
+
+export class AuthClientError extends Error {
+  constructor(public readonly status: number, message: string, public readonly code?: string, public readonly errors?: ValidationErrors, public readonly retryAfterSeconds?: number) { super(message); }
+}
+
+function errorsFrom(value: unknown): ValidationErrors | undefined { if (!value || typeof value !== "object") return undefined; const entries = Object.entries(value as Record<string, unknown>).flatMap(([key, messages]) => Array.isArray(messages) && messages.every((message) => typeof message === "string") ? [[key, messages] as const] : []); return entries.length ? Object.fromEntries(entries) : undefined; }
+async function request<T>(path: string, body?: object, method: "POST" | "PUT" = "POST"): Promise<T> { let response: Response; try { response = await fetch(path, { method, cache: "no-store", headers: { "Content-Type": "application/json", Accept: "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) }); } catch { throw new AuthClientError(503, "Authentication is temporarily unavailable."); } let payload: { data?: T; message?: unknown; code?: unknown; errors?: unknown; retry_after_seconds?: unknown }; try { payload = await response.json() as typeof payload; } catch { throw new AuthClientError(502, "Authentication is temporarily unavailable."); } if (!response.ok) throw new AuthClientError(response.status, typeof payload.message === "string" ? payload.message : "Authentication could not be completed.", typeof payload.code === "string" ? payload.code : undefined, errorsFrom(payload.errors), typeof payload.retry_after_seconds === "number" ? payload.retry_after_seconds : undefined); return payload.data as T; }
+export function login(input: LoginInput, returnTo?: string | null) { return request<{ user?: AuthenticatedUser; requires_email_verification?: boolean }>("/api/auth/login", { ...input, returnTo }); }
+export function register(input: RegisterJobSeekerInput, returnTo?: string | null) { return request<{ requires_email_verification: boolean }>("/api/auth/register", { ...input, returnTo }); }
+export function verifyEmailOtp(otp: string) { return request<{ user: AuthenticatedUser }>("/api/auth/email/verify-otp", { otp }); }
+export function resendEmailOtp(email?: string) { return request<{ metadata: ResendVerificationMetadata }>("/api/auth/email/resend-otp", email ? { email } : undefined); }
+export function requestPasswordResetCode(email?: string) { return request<{ metadata: PasswordResetMetadata }>("/api/auth/forgot-password", email ? { email } : undefined); }
+export function resetPassword(input: { otp: string; password: string; password_confirmation: string }) { return request<null>("/api/auth/reset-password", input); }
+export function updateAccountProfile(input: Partial<Pick<JobSeekerProfileDetail, "headline" | "summary" | "phone" | "location" | "portfolio_url" | "linkedin_url" | "github_url">>) { return request<JobSeekerProfileDetail>("/api/account/profile", input, "PUT"); }
+export function logout() { return request<null>("/api/auth/logout"); }

@@ -1,0 +1,5 @@
+import Link from "next/link";
+import { Container } from "@/components/layout/container";
+import { Logo } from "@/components/ui/logo";
+
+export function PublicFooter() { return <footer className="border-t border-border-default bg-surface"><Container className="grid gap-8 py-10 md:grid-cols-[1.4fr_1fr_1fr]"><div><Logo /><p className="type-body-small mt-3 max-w-md text-text-secondary">A clear public starting point for discovering opportunities and building your professional path.</p></div><nav aria-label="Explore Workey" className="grid content-start gap-2 type-body-small"><p className="font-semibold text-text-primary">Explore</p><Link href="/explore">Opportunities</Link><Link href="/#companies">Companies</Link><Link href="/#faq">FAQ</Link></nav><nav aria-label="Account links" className="grid content-start gap-2 type-body-small"><p className="font-semibold text-text-primary">Account</p><Link href="/login">Sign in</Link><Link href="/register">Create account</Link></nav><p className="type-body-small text-text-muted md:col-span-3">© {new Date().getFullYear()} Workey</p></Container></footer>; }

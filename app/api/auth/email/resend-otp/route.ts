@@ -1,0 +1,9 @@
+import { NextRequest, NextResponse } from "next/server";
+import { AuthBackendError, authBackendRequest } from "@/lib/auth/backend";
+import { getPendingVerification, setPendingVerification } from "@/lib/auth/server";
+import type { ResendVerificationMetadata } from "@/lib/auth/types";
+
+export const dynamic = "force-dynamic";
+const noStore = { "Cache-Control": "no-store, private" };
+function errorResponse(error: unknown) { const authError = error instanceof AuthBackendError ? error : new AuthBackendError(503, "Email verification is temporarily unavailable."); const message = authError.code === "OTP_RESEND_COOLDOWN" ? "Please wait before requesting another verification code." : authError.status >= 500 ? "Email verification is temporarily unavailable. Please try again shortly." : authError.message; return NextResponse.json({ message, code: authError.code, errors: authError.errors, retry_after_seconds: authError.retryAfterSeconds }, { status: authError.status, headers: noStore }); }
+export async function POST(request: NextRequest) { const pending = await getPendingVerification(); let suppliedEmail: string | undefined; if (!pending) { try { const body = await request.json() as Record<string, unknown>; if (typeof body.email === "string") suppliedEmail = body.email; } catch {} if (!suppliedEmail) return NextResponse.json({ message: "Enter the email address you used to register." }, { status: 400, headers: noStore }); } const email = pending?.email ?? suppliedEmail as string; try { const metadata = await authBackendRequest<ResendVerificationMetadata>("auth/email/resend-otp", { method: "POST", body: { email }, language: request.headers.get("accept-language") ?? undefined }); const response = NextResponse.json({ data: { metadata } }, { headers: noStore }); setPendingVerification(response, email, metadata, pending?.returnTo); return response; } catch (error) { return errorResponse(error); } }

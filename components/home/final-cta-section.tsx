@@ -1,0 +1,4 @@
+import Link from "next/link";
+import { Section } from "@/components/layout/section";
+
+export function FinalCtaSection() { return <Section spacing="spacious"><div className="radius-extra-large elevation-floating bg-primary p-8 text-center lg:p-12"><p className="type-heading-1 text-primary-foreground">Your next opportunity is worth a clear start.</p><p className="type-body mx-auto mt-4 max-w-2xl text-primary-foreground">Create your account to build your profile and make the most of the Workey job-seeker experience.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><Link className="ui-button ui-button--outline" href="/register">Create account</Link><Link className="ui-button ui-button--ghost text-primary-foreground" href="/explore">Explore opportunities</Link></div></div></Section>; }

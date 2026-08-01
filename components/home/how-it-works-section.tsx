@@ -1,0 +1,5 @@
+import { Section } from "@/components/layout/section";
+import { SectionHeading } from "@/components/layout/section-heading";
+
+const steps = [["01", "Create your account", "Begin your job-seeker journey with Workey."], ["02", "Complete your profile", "Add your professional information and manage your CV."], ["03", "Discover opportunities", "Explore roles that align with your skills and goals."], ["04", "Follow your progress", "Keep up with your applications and recruitment steps."]];
+export function HowItWorksSection() { return <Section><SectionHeading align="center" eyebrow="HOW WORKEY WORKS" title="One clear path, from profile to progress" /><div className="mt-10 grid gap-4 md:grid-cols-4">{steps.map(([number, title, description]) => <article className="ui-card" key={number}><p className="type-body-small font-semibold text-secondary">{number}</p><h3 className="type-heading-3 mt-5 text-text-primary">{title}</h3><p className="type-body-small mt-3 text-text-secondary">{description}</p></article>)}</div></Section>; }

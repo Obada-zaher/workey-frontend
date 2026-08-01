@@ -1,0 +1,8 @@
+import { NextRequest, NextResponse } from "next/server";
+import { AuthBackendError, authBackendRequest, isJobSeeker } from "@/lib/auth/backend";
+import { sessionCookieName, sessionCookieOptions } from "@/lib/auth/server";
+import type { AuthenticatedUser } from "@/lib/auth/types";
+
+export const dynamic = "force-dynamic";
+const noStore = { "Cache-Control": "no-store, private" };
+export async function GET(request: NextRequest) { const token = request.cookies.get(sessionCookieName)?.value; if (!token) return NextResponse.json({ message: "Authentication is required." }, { status: 401, headers: noStore }); try { const user = await authBackendRequest<AuthenticatedUser>("auth/me", { method: "GET", token, language: request.headers.get("accept-language") ?? undefined }); if (!isJobSeeker(user)) { const response = NextResponse.json({ message: "This account is not available in the job-seeker experience." }, { status: 403, headers: noStore }); response.cookies.set(sessionCookieName, "", { ...sessionCookieOptions, maxAge: 0 }); return response; } return NextResponse.json({ data: { user } }, { headers: noStore }); } catch (error) { const authError = error instanceof AuthBackendError ? error : new AuthBackendError(503, "Authentication is temporarily unavailable."); const response = NextResponse.json({ message: authError.status >= 500 ? "Authentication is temporarily unavailable." : "Authentication is required.", code: authError.code }, { status: authError.status, headers: noStore }); if (authError.status === 401 || authError.status === 403) response.cookies.set(sessionCookieName, "", { ...sessionCookieOptions, maxAge: 0 }); return response; } }
