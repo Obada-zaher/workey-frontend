@@ -4,7 +4,12 @@ import type { ApiEnvelope } from "./types";
 interface ApiRequestOptions { signal?: AbortSignal; query?: object; language?: string; }
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "https://workey.onrender.com/api/v1";
 
-function requestUrl(path: string, query?: ApiRequestOptions["query"]): URL { const url = new URL(path.replace(/^\//, ""), `${apiBaseUrl.replace(/\/$/, "")}/`); for (const [key, value] of Object.entries(query ?? {})) if (value !== undefined && value !== "") url.searchParams.set(key, String(value)); return url; }
+function requestUrl(path: string, query?: ApiRequestOptions["query"]): URL {
+  const base = new URL(`${apiBaseUrl.replace(/\/$/, "")}/`);
+  const url = path.startsWith("/api/") ? new URL(path, base.origin) : new URL(path.replace(/^\//, ""), base);
+  for (const [key, value] of Object.entries(query ?? {})) if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+  return url;
+}
 
 export async function get<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   let response: Response;

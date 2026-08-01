@@ -17,11 +17,11 @@ export interface JobsQueryState {
 }
 
 function isPrimitive(value: unknown): value is JobFilterPrimitive { return typeof value === "string" || typeof value === "number" || typeof value === "boolean"; }
-function isQueryValue(value: unknown) { return isPrimitive(value) && value !== ""; }
+function isQueryValue(value: unknown): value is JobFilterPrimitive { return isPrimitive(value) && value !== ""; }
 function hasValue(value: unknown) { return isQueryValue(value) && value !== false; }
 function isRangeValue(value: AppliedJobFilterValue): value is JobRangeFilterValue { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
 
-function isVisible(definition: JobFilterDefinition, definitions: JobFilterDefinition[], filters: AppliedJobFilters) {
+export function isJobFilterVisible(definition: JobFilterDefinition, definitions: JobFilterDefinition[], filters: AppliedJobFilters) {
   const condition = definition.visible_when;
   if (!condition) return true;
   if (condition.operator !== "has_value") return false;
@@ -44,8 +44,64 @@ function addFilterQuery(query: JobsQuery, definition: JobFilterDefinition, value
     return;
   }
 
-  if (!isQueryValue(value) || value === definition.default) return;
+  if (!isQueryValue(value) || (definition.default !== null && definition.default !== undefined && String(value) === String(definition.default))) return;
   query[definition.parameter] = value;
+}
+
+function defaultValue(definition: JobFilterDefinition): AppliedJobFilterValue {
+  if (definition.type === "range") {
+    return { minimum: null, maximum: null };
+  }
+
+  if (definition.type === "boolean") return typeof definition.default === "boolean" ? definition.default : false;
+  return definition.default ?? null;
+}
+
+export function defaultJobFilters(schema: JobFilterSchema | null): AppliedJobFilters {
+  return Object.fromEntries((schema?.filters ?? []).map((definition) => [definition.key, defaultValue(definition)]));
+}
+
+/** Reads filter values with backend parameter names, keeping the schema as the URL contract. */
+export function readJobFilters(schema: JobFilterSchema | null, params: Pick<URLSearchParams, "get">): AppliedJobFilters {
+  const filters = defaultJobFilters(schema);
+
+  for (const definition of schema?.filters ?? []) {
+    if (definition.type === "range") {
+      const minimum = params.get(definition.parameters.minimum);
+      const maximum = params.get(definition.parameters.maximum);
+      filters[definition.key] = { minimum: minimum || null, maximum: maximum || null };
+      continue;
+    }
+
+    const value = params.get(definition.parameter);
+    if (definition.type === "boolean") {
+      if (value !== null) filters[definition.key] = value === "true" || value === "1";
+      continue;
+    }
+
+    if (value) filters[definition.key] = value;
+  }
+
+  return filters;
+}
+
+/** Removes values for controls hidden by a supported backend visibility condition. */
+export function normalizeJobFilters(schema: JobFilterSchema | null, filters: AppliedJobFilters): AppliedJobFilters {
+  const definitions = schema?.filters ?? [];
+  return Object.fromEntries(definitions.map((definition) => [
+    definition.key,
+    isJobFilterVisible(definition, definitions, filters) ? filters[definition.key] ?? defaultValue(definition) : defaultValue(definition),
+  ]));
+}
+
+/** Builds just the dynamic backend filter parameters for URL state and job requests. */
+export function buildJobFilterQuery(schema: JobFilterSchema | null, filters: AppliedJobFilters): JobsQuery {
+  const query: JobsQuery = {};
+  const definitions = schema?.filters ?? [];
+  definitions.forEach((definition) => {
+    if (isJobFilterVisible(definition, definitions, filters)) addFilterQuery(query, definition, filters[definition.key]);
+  });
+  return query;
 }
 
 /** Converts schema-driven UI state into only the backend parameters that carry a value. */
@@ -54,11 +110,7 @@ export function buildJobsQuery(schema: JobFilterSchema | null, state: JobsQueryS
   const search = state.search?.trim();
   if (search) query.search = search;
 
-  const filters = state.filters ?? {};
-  const definitions = schema?.filters ?? [];
-  definitions.forEach((definition) => {
-    if (isVisible(definition, definitions, filters)) addFilterQuery(query, definition, filters[definition.key]);
-  });
+  Object.assign(query, buildJobFilterQuery(schema, state.filters ?? {}));
 
   const selectedSort = schema?.sort_options.find((option) => option.key === state.sort);
   if (selectedSort && !selectedSort.default) {

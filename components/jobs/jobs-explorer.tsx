@@ -1,45 +1,352 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { JobFilterDrawer } from "@/components/jobs/job-filter-drawer";
+import { JobFilterRenderer } from "@/components/jobs/job-filter-renderer";
+import { JobCard } from "@/components/jobs/job-card";
 import { SectionSkeleton } from "@/components/feedback/section-skeleton";
 import { SectionState } from "@/components/feedback/section-state";
-import { JobCard } from "@/components/jobs/job-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApiError } from "@/lib/api/errors";
-import { getPublicJobs } from "@/lib/api/jobs";
+import { getJobFilterSchema, getPublicJobs } from "@/lib/api/jobs";
+import type { Job, JobFilterDefinition, JobFilterSchema, JobRecommendation, PaginationMeta } from "@/lib/api/types";
 import { routes } from "@/config/routes";
-import type { Job, JobsQuery, PaginationMeta } from "@/lib/api/types";
+import { defaultExploreTab, normalizeExploreTab, type ExploreTab } from "@/lib/jobs/explore-state";
+import { buildJobFilterQuery, buildJobsQuery, defaultJobFilters, isJobFilterVisible, normalizeJobFilters, readJobFilters, type AppliedJobFilterValue, type AppliedJobFilters, type JobRangeFilterValue } from "@/lib/jobs/query-builder";
 
 const PAGE_SIZE = 12;
-type SortDirection = "asc" | "desc";
-interface JobsSearchState { search: string; location: string; workMode: string; sortDirection: SortDirection; page: number; }
+export type ExploreSchemaStatus = "ready" | "unsupported" | "failed";
 
-function numberValue(value: string | null) { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : 1; }
-function stateFromParams(params: URLSearchParams): JobsSearchState { return { search: params.get("search") ?? "", location: params.get("location") ?? "", workMode: ["remote", "hybrid", "on_site"].includes(params.get("work_mode") ?? "") ? params.get("work_mode") ?? "" : "", sortDirection: params.get("sort_direction") === "asc" ? "asc" : "desc", page: numberValue(params.get("page")) }; }
-function urlFor(state: JobsSearchState) { const params = new URLSearchParams(); if (state.search.trim()) params.set("search", state.search.trim()); if (state.location.trim()) params.set("location", state.location.trim()); if (state.workMode) params.set("work_mode", state.workMode); if (state.sortDirection === "asc") { params.set("sort_by", "published_at"); params.set("sort_direction", "asc"); } if (state.page > 1) params.set("page", String(state.page)); return `${routes.explore}${params.size ? `?${params.toString()}` : ""}`; }
-function queryFor(state: JobsSearchState): JobsQuery { return { search: state.search.trim() || undefined, location: state.location.trim() || undefined, work_mode: state.workMode || undefined, sort_by: "published_at", sort_direction: state.sortDirection, accepting_applications: true, page: state.page, per_page: PAGE_SIZE }; }
-function hasFilters(state: JobsSearchState) { return Boolean(state.search.trim() || state.location.trim() || state.workMode || state.sortDirection === "asc"); }
-function paginationPages(current: number, last: number) { const pages = new Set([1, last, current - 1, current, current + 1]); return [...pages].filter((page) => page >= 1 && page <= last).sort((left, right) => left - right); }
-
-function JobsSearchControls({ initialState, loading, summary, onReset, onSearch, onSort }: { initialState: JobsSearchState; loading: boolean; summary: string; onReset: () => void; onSearch: (state: JobsSearchState) => void; onSort: (direction: SortDirection) => void; }) {
-  const [draft, setDraft] = useState(initialState);
-  function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSearch({ ...draft, page: 1 }); }
-  function updateSort(sortDirection: SortDirection) { const next = { ...draft, sortDirection, page: 1 }; setDraft(next); onSort(sortDirection); }
-  return <><form className="radius-large mt-7 grid gap-3 border border-border-default bg-surface p-5 md:grid-cols-[1fr_1fr_minmax(9rem,.7fr)_auto] md:items-end" onSubmit={submit} role="search"><Input label="Job title or keyword" name="search" onChange={(event) => setDraft((current) => ({ ...current, search: event.target.value }))} placeholder="e.g. product designer" type="search" value={draft.search} /><Input label="Location" name="location" onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} placeholder="City or remote" value={draft.location} /><label className="grid gap-2 type-body-small text-text-secondary"><span className="font-medium text-text-primary">Work style</span><select className="ui-select" name="work_mode" onChange={(event) => setDraft((current) => ({ ...current, workMode: event.target.value }))} value={draft.workMode}><option value="">Any style</option><option value="remote">Remote</option><option value="hybrid">Hybrid</option><option value="on_site">On-site</option></select></label><Button loading={loading} type="submit">Search jobs</Button></form><div className="mt-5 flex flex-wrap items-end justify-between gap-4"><div><p className="type-body-small text-text-secondary">{summary}</p>{hasFilters(initialState) ? <Button className="mt-3" onClick={onReset} size="small" type="button" variant="ghost">Reset all filters</Button> : null}</div><label className="grid gap-2 type-body-small text-text-secondary"><span className="font-medium text-text-primary">Sort by</span><select className="ui-select min-w-40" onChange={(event) => updateSort(event.target.value as SortDirection)} value={draft.sortDirection}><option value="desc">Newest</option><option value="asc">Oldest</option></select></label></div></>;
+interface ExploreUrlState {
+  tab: ExploreTab;
+  search: string;
+  sort: string;
+  page: number;
+  filters: AppliedJobFilters;
 }
 
-export function JobsExplorer() {
-  const router = useRouter(); const searchParams = useSearchParams(); const resultsRef = useRef<HTMLDivElement | null>(null); const controller = useRef<AbortController | null>(null); const requestId = useRef(0);
-  const queryString = searchParams.toString(); const activeState = useMemo(() => stateFromParams(new URLSearchParams(queryString)), [queryString]);
-  const [jobs, setJobs] = useState<Job[]>([]); const [meta, setMeta] = useState<PaginationMeta | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
-  const loadJobs = useCallback(async (state: JobsSearchState) => { controller.current?.abort(); const activeController = new AbortController(); controller.current = activeController; const id = ++requestId.current; setLoading(true); setError(null); try { const response = await getPublicJobs(queryFor(state), activeController.signal); if (id !== requestId.current) return; setJobs(response.data); setMeta(response.meta); } catch (reason) { if (activeController.signal.aborted || id !== requestId.current) return; setError(reason instanceof ApiError && reason.code === "service_unavailable" ? "Job search is temporarily unavailable. Please try again shortly." : "We could not update the opportunities right now."); } finally { if (id === requestId.current) setLoading(false); } }, []);
-  useEffect(() => { // URL changes are an external synchronization source; the request itself owns the pending state.
+interface JobsExplorerProps {
+  authenticated: boolean;
+  initialSchema: JobFilterSchema | null;
+  initialSchemaStatus: ExploreSchemaStatus;
+  initialSchemaError: string | null;
+  initialRecommendations: JobRecommendation[] | null;
+  initialRecommendationsError: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isValidJob(value: unknown): value is Job {
+  return isRecord(value) && typeof value.id === "number";
+}
+
+function uniqueJobs(items: readonly unknown[]): Job[] {
+  const seen = new Set<number>();
+  return items.filter(isValidJob).filter((job) => {
+    if (seen.has(job.id)) return false;
+    seen.add(job.id);
+    return true;
+  });
+}
+
+function normalizeRecommendations(value: unknown): JobRecommendation[] {
+  if (!Array.isArray(value)) {
+    if (value !== null && process.env.NODE_ENV !== "production") console.warn("Workey Explore ignored an invalid recommendations response.");
+    return [];
+  }
+
+  const recommendations = value.flatMap((item) => {
+    if (!isRecord(item) || !isValidJob(item.job)) return [];
+    return [{ ...item, job: item.job } as JobRecommendation];
+  });
+  if (recommendations.length !== value.length && process.env.NODE_ENV !== "production") console.warn("Workey Explore ignored malformed recommendation items.");
+  return recommendations;
+}
+
+function cloneFilters(filters: AppliedJobFilters): AppliedJobFilters {
+  return Object.fromEntries(Object.entries(filters).map(([key, value]) => [key, value && typeof value === "object" ? { ...value } : value]));
+}
+
+function pageFrom(value: string | null) {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function paginationPages(current: number, last: number) {
+  const pages = new Set([1, last, current - 1, current, current + 1]);
+  return [...pages].filter((page) => page >= 1 && page <= last).sort((left, right) => left - right);
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.code === "validation") return "One of the selected search values is no longer valid.";
+    if (error.code === "network" || error.code === "server" || error.code === "service_unavailable") return "Jobs are temporarily unavailable. Please try again shortly.";
+    return error.message;
+  }
+  return "We could not update the opportunities right now.";
+}
+
+function SearchControl({ initialSearch, onApply }: { initialSearch: string; onApply: (search: string, replace: boolean) => void }) {
+  const [draft, setDraft] = useState(initialSearch);
+  const skipDebounce = useRef(false);
+
+  useEffect(() => {
+    if (skipDebounce.current) {
+      skipDebounce.current = false;
+      return;
+    }
+    if (draft === initialSearch) return;
+    const timer = window.setTimeout(() => onApply(draft, true), 400);
+    return () => window.clearTimeout(timer);
+  }, [draft, initialSearch, onApply]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    skipDebounce.current = true;
+    onApply(draft, false);
+  }
+
+  function clear() {
+    skipDebounce.current = true;
+    setDraft("");
+    onApply("", false);
+  }
+
+  return (
+    <form className="explore-shell__search" onSubmit={submit} role="search">
+      <Input
+        label="Search opportunities"
+        name="search"
+        onChange={(event) => setDraft(event.target.value)}
+        placeholder="Search jobs, skills, or companies..."
+        trailing={draft ? <button aria-label="Clear search" className="explore-shell__clear-search" onClick={clear} type="button">Clear</button> : null}
+        type="search"
+        value={draft}
+      />
+    </form>
+  );
+}
+
+function FilterPanel({ count, error, filtersEnabled, onChange, onReset, onRetry, onAutocompleteLabel, retrying, schema, status, values }: {
+  count: number | null;
+  error: string | null;
+  filtersEnabled: boolean;
+  onChange: (key: string, value: AppliedJobFilterValue) => void;
+  onReset: () => void;
+  onRetry: () => void;
+  onAutocompleteLabel: (key: string, label: string) => void;
+  retrying: boolean;
+  schema: JobFilterSchema | null;
+  status: ExploreSchemaStatus;
+  values: AppliedJobFilters;
+}) {
+  return (
+    <div className="explore-shell__filter-panel">
+      <div className="explore-shell__filter-heading">
+        <div>
+          <p className="type-heading-4 text-text-primary">Filters</p>
+          <p className="type-body-small mt-2 text-text-secondary">Refine opportunities using the available Workey filters.</p>
+        </div>
+        {filtersEnabled && count !== null ? <span className="explore-shell__filter-count">{count}</span> : null}
+      </div>
+      {!filtersEnabled ? <p className="type-body-small mt-5 text-text-secondary">Filters are available in Latest and All Jobs.</p> : status === "failed" ? <div className="mt-5"><p className="type-body-small text-danger" role="status">{error ?? "Filters are temporarily unavailable."}</p><Button className="mt-3" loading={retrying} onClick={onRetry} size="small" type="button" variant="outline">Retry filters</Button></div> : status === "unsupported" ? <p className="type-body-small mt-5 text-text-secondary">Filters are unavailable while this job-search contract is updated.</p> : !schema ? <div aria-label="Loading filters" className="explore-shell__filter-skeleton"><span /><span /><span /><span /></div> : <>
+        <JobFilterRenderer onAutocompleteLabel={onAutocompleteLabel} onChange={onChange} schema={schema} values={values} />
+        <Button className="explore-shell__filter-reset" onClick={onReset} size="small" type="button" variant="ghost">Reset filters</Button>
+      </>}
+    </div>
+  );
+}
+
+interface FilterChip { key: string; label: string; }
+
+function isRange(value: AppliedJobFilterValue): value is JobRangeFilterValue {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function chipFor(definition: JobFilterDefinition, value: AppliedJobFilterValue, autocompleteLabels: Record<string, string>): string | null {
+  if (definition.type === "range") {
+    if (!isRange(value) || (!value.minimum && !value.maximum)) return null;
+    return `${definition.label}: ${value.minimum ?? "Any"}–${value.maximum ?? "Any"}`;
+  }
+  if (definition.type === "boolean") {
+    const defaultValue = typeof definition.default === "boolean" ? definition.default : false;
+    return value === defaultValue ? null : definition.label;
+  }
+  if (value === null || value === undefined || value === "" || (definition.default !== null && definition.default !== undefined && String(value) === String(definition.default))) return null;
+  if (definition.type === "single_select") return definition.options.find((option) => String(option.key) === String(value))?.value ?? null;
+  return autocompleteLabels[definition.key] ?? String(value);
+}
+
+function activeChips(schema: JobFilterSchema | null, filters: AppliedJobFilters, autocompleteLabels: Record<string, string>): FilterChip[] {
+  const definitions = schema?.filters ?? [];
+  return definitions.flatMap((definition) => {
+    if (!isJobFilterVisible(definition, definitions, filters)) return [];
+    const label = chipFor(definition, filters[definition.key], autocompleteLabels);
+    return label ? [{ key: definition.key, label }] : [];
+  });
+}
+
+export function JobsExplorer({ authenticated, initialRecommendations, initialRecommendationsError, initialSchema, initialSchemaError, initialSchemaStatus }: JobsExplorerProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const [schemaOverride, setSchemaOverride] = useState<JobFilterSchema | null | undefined>(undefined);
+  const [schemaStatusOverride, setSchemaStatusOverride] = useState<ExploreSchemaStatus | undefined>(undefined);
+  const [schemaErrorOverride, setSchemaErrorOverride] = useState<string | null | undefined>(undefined);
+  const [retryingSchema, setRetryingSchema] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState<AppliedJobFilters>({});
+  const [autocompleteLabels, setAutocompleteLabels] = useState<Record<string, string>>({});
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [meta, setMeta] = useState<PaginationMeta | null>(null);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const requestController = useRef<AbortController | null>(null);
+  const requestId = useRef(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const queryString = searchParams.toString();
+  const requestedTab = searchParams.get("tab");
+  const activeTab = normalizeExploreTab(requestedTab, authenticated);
+  const schema = schemaOverride === undefined ? initialSchema : schemaOverride;
+  const schemaStatus = schemaStatusOverride ?? initialSchemaStatus;
+  const schemaError = schemaErrorOverride === undefined ? initialSchemaError : schemaErrorOverride;
+  const sortFromUrl = searchParams.get("sort") ?? "";
+  const availableSortOptions = useMemo(() => schema?.sort_options ?? [], [schema]);
+  const defaultTab = defaultExploreTab(authenticated);
+  const selectedSort = activeTab === "latest" ? "newest" : availableSortOptions.some((option) => option.key === sortFromUrl) ? sortFromUrl : availableSortOptions.find((option) => option.default)?.key ?? availableSortOptions[0]?.key ?? "";
+  const urlFilters = useMemo(() => normalizeJobFilters(schema, readJobFilters(schema, searchParams)), [schema, searchParams]);
+  const state = useMemo<ExploreUrlState>(() => ({ tab: activeTab, search: searchParams.get("search") ?? "", sort: selectedSort, page: pageFrom(searchParams.get("page")), filters: urlFilters }), [activeTab, searchParams, selectedSort, urlFilters]);
+  const recommendations = useMemo(() => normalizeRecommendations(initialRecommendations), [initialRecommendations]);
+  const filtersEnabled = activeTab !== "for-you";
+  const chips = useMemo(() => activeChips(schema, state.filters, autocompleteLabels), [autocompleteLabels, schema, state.filters]);
+
+  const navigate = useCallback((next: ExploreUrlState, replace = false, scrollResults = false) => {
+    const params = new URLSearchParams();
+    if (next.tab !== defaultTab) params.set("tab", next.tab);
+    if (next.search.trim()) params.set("search", next.search.trim());
+    if (next.tab === "all" && next.sort) params.set("sort", next.sort);
+    Object.entries(buildJobFilterQuery(schema, next.filters)).forEach(([parameter, value]) => params.set(parameter, String(value)));
+    if (next.page > 1) params.set("page", String(next.page));
+    const href = `${routes.explore}${params.size ? `?${params.toString()}` : ""}`;
+    startTransition(() => {
+      if (replace) router.replace(href, { scroll: false });
+      else router.push(href, { scroll: false });
+    });
+    if (scrollResults) {
+      const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+      requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior, block: "start" }));
+    }
+  }, [defaultTab, router, schema, startTransition]);
+
+  useEffect(() => {
+    if (requestedTab && requestedTab !== activeTab) navigate({ ...state, tab: activeTab, page: 1 }, true);
+  }, [activeTab, navigate, requestedTab, state]);
+
+  useEffect(() => {
+    if (!sortFromUrl) return;
+    if (activeTab === "latest") {
+      navigate({ ...state, sort: "", page: 1 }, true);
+      return;
+    }
+    if (activeTab !== "all" || !availableSortOptions.length || availableSortOptions.some((option) => option.key === sortFromUrl)) return;
+    navigate({ ...state, sort: "", page: 1 }, true);
+  }, [activeTab, availableSortOptions, navigate, sortFromUrl, state]);
+
+  const loadJobs = useCallback(async () => {
+    if (activeTab === "for-you") return;
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const id = ++requestId.current;
+    setLoadingJobs(true);
+    setJobsError(null);
+    try {
+      const response = await getPublicJobs(buildJobsQuery(schema, { search: state.search, filters: state.filters, sort: activeTab === "latest" ? "newest" : state.sort || null, page: state.page, perPage: PAGE_SIZE }), controller.signal);
+      if (id !== requestId.current) return;
+      setJobs(uniqueJobs(response.data));
+      setMeta(response.meta);
+    } catch (error) {
+      if (controller.signal.aborted || id !== requestId.current) return;
+      setJobsError(errorMessage(error));
+    } finally {
+      if (id === requestId.current) setLoadingJobs(false);
+    }
+  }, [activeTab, schema, state]);
+
+  useEffect(() => {
+    // URL-driven result loading owns this pending state; it is not derived render state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadJobs(activeState); return () => controller.current?.abort(); }, [activeState, loadJobs]);
-  function navigate(next: JobsSearchState, shouldScroll = false) { router.push(urlFor(next), { scroll: false }); if (shouldScroll) { const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"; resultsRef.current?.scrollIntoView({ behavior, block: "start" }); } }
-  function reset() { const empty: JobsSearchState = { search: "", location: "", workMode: "", sortDirection: "desc", page: 1 }; navigate(empty); }
-  const firstResult = meta && meta.total ? (meta.current_page - 1) * meta.per_page + 1 : 0; const lastResult = meta ? Math.min(meta.current_page * meta.per_page, meta.total) : 0; const pages = meta ? paginationPages(meta.current_page, meta.last_page) : [];
-  return <><JobsSearchControls initialState={activeState} key={queryString} loading={loading} onReset={reset} onSearch={(state) => navigate(state)} onSort={(sortDirection) => navigate({ ...activeState, sortDirection, page: 1 })} summary={meta ? meta.total ? `Showing ${firstResult}–${lastResult} of ${meta.total} public opportunities` : "No public opportunities found" : "Loading current opportunities"} /><div aria-busy={loading} aria-live="polite" className="mt-8 min-h-80" id="jobs-results" ref={resultsRef}><p className="sr-only">{loading ? "Loading job results" : error ? "Job search could not be updated" : meta ? `${meta.total} job results available` : ""}</p>{loading ? <SectionSkeleton cards={PAGE_SIZE} className="md:grid-cols-2 xl:grid-cols-3" /> : error ? <div className="ui-card ui-card--muted"><p className="type-body text-text-primary">{error}</p><Button className="mt-4" onClick={() => void loadJobs(activeState)} type="button" variant="outline">Try again</Button></div> : jobs.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{jobs.map((job) => <JobCard job={job} key={job.id} />)}</div> : <SectionState title="No matching opportunities" description={hasFilters(activeState) ? "Try broadening your keyword, location, or work-style search." : "There are no public opportunities to show right now."} />}</div>{meta && meta.last_page > 1 ? <nav aria-label="Job results pages" className="mt-8"><div className="hidden items-center justify-center gap-2 sm:flex"><Button disabled={loading || meta.current_page <= 1} onClick={() => navigate({ ...activeState, page: activeState.page - 1 }, true)} size="small" type="button" variant="outline">Previous</Button>{pages.map((page, index) => <span className="flex items-center gap-2" key={page}>{index > 0 && page - pages[index - 1] > 1 ? <span aria-hidden="true">…</span> : null}<Button aria-current={page === meta.current_page ? "page" : undefined} disabled={loading} onClick={() => navigate({ ...activeState, page }, true)} size="small" type="button" variant={page === meta.current_page ? "primary" : "outline"}>{page}</Button></span>)}<Button disabled={loading || meta.current_page >= meta.last_page} onClick={() => navigate({ ...activeState, page: activeState.page + 1 }, true)} size="small" type="button" variant="outline">Next</Button></div><div className="flex items-center justify-between gap-3 sm:hidden"><Button disabled={loading || meta.current_page <= 1} onClick={() => navigate({ ...activeState, page: activeState.page - 1 }, true)} size="small" type="button" variant="outline">Previous</Button><p className="type-body-small text-text-secondary">Page {meta.current_page} of {meta.last_page}</p><Button disabled={loading || meta.current_page >= meta.last_page} onClick={() => navigate({ ...activeState, page: activeState.page + 1 }, true)} size="small" type="button" variant="outline">Next</Button></div></nav> : null}</>;
+    void loadJobs();
+    return () => requestController.current?.abort();
+  }, [loadJobs]);
+
+  async function retrySchema() {
+    setRetryingSchema(true);
+    try {
+      const nextSchema = await getJobFilterSchema();
+      setSchemaOverride(nextSchema);
+      setSchemaStatusOverride(nextSchema ? "ready" : "unsupported");
+      setSchemaErrorOverride(null);
+    } catch (error) {
+      setSchemaOverride(null);
+      setSchemaStatusOverride("failed");
+      setSchemaErrorOverride(errorMessage(error));
+    } finally {
+      setRetryingSchema(false);
+    }
+  }
+
+  function changeSearch(search: string, replace: boolean) { navigate({ ...state, search, page: 1 }, replace); }
+  function changeTab(tab: ExploreTab) { navigate({ ...state, tab, page: 1, sort: tab === "all" ? state.sort : "" }); }
+  function changeSort(sort: string) { navigate({ ...state, sort, page: 1 }); }
+  function updateFilters(filters: AppliedJobFilters, replace = false) { navigate({ ...state, filters: normalizeJobFilters(schema, filters), page: 1 }, replace); }
+  function changeFilter(key: string, value: AppliedJobFilterValue) { updateFilters({ ...state.filters, [key]: value }); }
+  function resetFilters() { updateFilters(defaultJobFilters(schema)); }
+  function removeFilter(key: string) { updateFilters({ ...state.filters, [key]: defaultJobFilters(schema)[key] }); }
+  function openMobileFilters() { setDraftFilters(cloneFilters(state.filters)); setMobileFiltersOpen(true); }
+  function updateDraft(key: string, value: AppliedJobFilterValue) { setDraftFilters((current) => normalizeJobFilters(schema, { ...current, [key]: value })); }
+  function resetDraft() { setDraftFilters(defaultJobFilters(schema)); }
+  function applyDraft() { updateFilters(draftFilters); setMobileFiltersOpen(false); }
+
+  const firstResult = meta && meta.total ? (meta.current_page - 1) * meta.per_page + 1 : 0;
+  const lastResult = meta ? Math.min(meta.current_page * meta.per_page, meta.total) : 0;
+  const pages = meta ? paginationPages(meta.current_page, meta.last_page) : [];
+  const tabs: Array<{ key: ExploreTab; label: string }> = authenticated ? [{ key: "for-you", label: "For You" }, { key: "latest", label: "Latest" }, { key: "all", label: "All Jobs" }] : [{ key: "latest", label: "Latest" }, { key: "all", label: "All Jobs" }];
+  const showPublicResults = activeTab !== "for-you";
+  const resultCount = showPublicResults && meta ? meta.total : null;
+
+  return (
+    <div className="explore-shell">
+      <aside className="explore-shell__sidebar">
+        <FilterPanel count={resultCount} error={schemaError} filtersEnabled={filtersEnabled} onAutocompleteLabel={(key, label) => setAutocompleteLabels((current) => current[key] === label ? current : { ...current, [key]: label })} onChange={changeFilter} onReset={resetFilters} onRetry={() => void retrySchema()} retrying={retryingSchema} schema={schema} status={schemaStatus} values={state.filters} />
+      </aside>
+      <section className="explore-shell__content">
+        <header className="explore-shell__heading">
+          <div><p className="type-body-small font-semibold tracking-wide text-secondary">OPPORTUNITY EXPLORER</p><h1 className="type-heading-1 mt-3 text-text-primary">Explore Opportunities</h1><p className="type-body mt-3 text-text-secondary">Discover roles that match your skills, goals, and preferred way of working.</p></div>
+          <Button aria-expanded={mobileFiltersOpen} className="explore-shell__filters-button" disabled={!filtersEnabled} onClick={openMobileFilters} size="small" type="button" variant="outline">Filters</Button>
+        </header>
+        <SearchControl initialSearch={state.search} key={queryString} onApply={changeSearch} />
+        <div className="explore-shell__controls">
+          <div aria-label="Explore tabs" className="explore-shell__tabs" role="tablist">{tabs.map((tab) => <button aria-controls="explore-results" aria-selected={activeTab === tab.key} className={`explore-shell__tab${activeTab === tab.key ? " explore-shell__tab--active" : ""}`} key={tab.key} onClick={() => changeTab(tab.key)} role="tab" type="button">{tab.label}</button>)}</div>
+          {activeTab === "all" && availableSortOptions.length ? <label className="explore-shell__sort"><span>Sort by</span><select className="ui-select" onChange={(event) => changeSort(event.target.value)} value={selectedSort}>{availableSortOptions.map((option) => <option key={option.key} value={option.key}>{option.value}</option>)}</select></label> : null}
+          {activeTab === "latest" && availableSortOptions.some((option) => option.key === "newest") ? <p className="type-body-small text-text-secondary">{availableSortOptions.find((option) => option.key === "newest")?.value}</p> : null}
+        </div>
+        {filtersEnabled && chips.length ? <div aria-label="Applied filters" className="explore-shell__applied-filters">{chips.map((chip) => <button aria-label={`Remove ${chip.label} filter`} key={chip.key} onClick={() => removeFilter(chip.key)} type="button">{chip.label}<span aria-hidden="true">×</span></button>)}<button className="explore-shell__clear-filters" onClick={resetFilters} type="button">Clear all</button></div> : null}
+        <div aria-busy={showPublicResults ? loadingJobs || isPending : isPending} aria-live="polite" className="explore-shell__results" id="explore-results" ref={resultsRef}>
+          <p className="sr-only">{showPublicResults ? loadingJobs ? "Loading opportunities" : jobsError ? "Job search could not be updated" : meta ? `${meta.total} opportunities available` : "" : initialRecommendationsError ? "Recommendations could not be loaded" : ""}</p>
+          {activeTab === "for-you" ? isPending ? <SectionSkeleton cards={3} className="md:grid-cols-2 xl:grid-cols-3" /> : initialRecommendationsError ? <SectionState description={initialRecommendationsError} title="Recommendations are temporarily unavailable" /> : recommendations.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{uniqueJobs(recommendations.map((recommendation) => recommendation.job)).map((job) => <JobCard job={job} key={job.id} />)}</div> : <SectionState description="Complete more of your profile and check back as suitable roles become available." title="No recommendations available" /> : loadingJobs ? <SectionSkeleton cards={PAGE_SIZE} className="md:grid-cols-2 xl:grid-cols-3" /> : jobsError ? <div className="ui-card ui-card--muted"><p className="type-body text-text-primary">{jobsError}</p><Button className="mt-4" onClick={() => void loadJobs()} type="button" variant="outline">Try again</Button></div> : jobs.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{jobs.map((job) => <JobCard job={job} key={job.id} />)}</div> : <SectionState description={state.search ? "Try a broader search or clear the current search." : "There are no current opportunities to show."} resetHref={state.search ? routes.explore : undefined} title={state.search ? "No jobs match this search" : "No jobs available"} />}
+        </div>
+        {showPublicResults && meta && meta.last_page > 1 ? <nav aria-label="Job results pages" className="explore-shell__pagination"><Button disabled={loadingJobs || meta.current_page <= 1} onClick={() => navigate({ ...state, page: state.page - 1 }, false, true)} size="small" type="button" variant="outline">Previous</Button><span className="type-body-small text-text-secondary">Showing {firstResult}–{lastResult} of {meta.total}</span><div className="hidden items-center gap-2 sm:flex">{pages.map((page) => <Button aria-current={page === meta.current_page ? "page" : undefined} disabled={loadingJobs} key={page} onClick={() => navigate({ ...state, page }, false, true)} size="small" type="button" variant={page === meta.current_page ? "primary" : "outline"}>{page}</Button>)}</div><Button disabled={loadingJobs || meta.current_page >= meta.last_page} onClick={() => navigate({ ...state, page: state.page + 1 }, false, true)} size="small" type="button" variant="outline">Next</Button></nav> : null}
+      </section>
+      <JobFilterDrawer onClose={() => setMobileFiltersOpen(false)} open={mobileFiltersOpen}>
+        <div className="explore-filter-drawer__header"><div><h2 className="type-heading-3">Filters</h2><p className="type-body-small text-text-secondary">Choose filters, then update the results.</p></div><Button aria-label="Close filters" onClick={() => setMobileFiltersOpen(false)} size="small" type="button" variant="ghost">Close</Button></div>
+        {schema && schemaStatus === "ready" ? <JobFilterRenderer onAutocompleteLabel={(key, label) => setAutocompleteLabels((current) => current[key] === label ? current : { ...current, [key]: label })} onChange={updateDraft} schema={schema} values={draftFilters} /> : <p className="type-body-small text-text-secondary">Filters are temporarily unavailable.</p>}
+        <div className="explore-filter-drawer__actions"><Button onClick={resetDraft} type="button" variant="ghost">Reset</Button><Button onClick={applyDraft} type="button">Show Results</Button></div>
+      </JobFilterDrawer>
+    </div>
+  );
 }

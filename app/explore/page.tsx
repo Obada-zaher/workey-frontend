@@ -1,35 +1,65 @@
 import type { Metadata } from "next";
 import { AuthenticatedHeader } from "@/components/navigation/authenticated-header";
 import { AuthenticatedMobileNavigation } from "@/components/navigation/authenticated-mobile-navigation";
-import { JobsExplorer } from "@/components/jobs/jobs-explorer";
-import { Section } from "@/components/layout/section";
-import { SectionHeading } from "@/components/layout/section-heading";
+import { JobsExplorer, type ExploreSchemaStatus } from "@/components/jobs/jobs-explorer";
+import { Container } from "@/components/layout/container";
 import { PublicFooter } from "@/components/public/public-footer";
 import { PublicHeader } from "@/components/public/public-header";
+import { ApiError } from "@/lib/api/errors";
+import { getJobFilterSchema } from "@/lib/api/jobs";
 import { getCurrentUser } from "@/lib/auth/server";
+import { normalizeExploreTab } from "@/lib/jobs/explore-state";
+import { getRecommendedJobs } from "@/lib/jobs/recommended-server";
 
 export const metadata: Metadata = {
   title: "Explore | Workey",
   description: "Search current opportunities on Workey.",
 };
 
-export default async function ExplorePage() {
-  const user = await getCurrentUser();
+type SearchParams = Record<string, string | string[] | undefined>;
+function first(value: string | string[] | undefined) { return typeof value === "string" ? value : undefined; }
+
+export default async function ExplorePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const [params, user] = await Promise.all([searchParams, getCurrentUser()]);
   const authenticated = Boolean(user);
+  const activeTab = normalizeExploreTab(first(params.tab), authenticated);
+  let schema = null;
+  let schemaStatus: ExploreSchemaStatus = "ready";
+  let schemaError: string | null = null;
+
+  try {
+    schema = await getJobFilterSchema();
+    if (!schema) schemaStatus = "unsupported";
+  } catch (error) {
+    schemaStatus = "failed";
+    schemaError = error instanceof ApiError ? error.message : "Filters are temporarily unavailable.";
+  }
+
+  let recommendations = null;
+  let recommendationsError: string | null = null;
+  if (authenticated && activeTab === "for-you") {
+    try {
+      recommendations = await getRecommendedJobs();
+    } catch (error) {
+      recommendationsError = error instanceof Error ? error.message : "Recommendations are temporarily unavailable.";
+    }
+  }
 
   return (
     <div className={authenticated ? "account-app-shell min-h-dvh bg-background" : undefined}>
       <a className="skip-link" href="#explore-results">Skip to opportunities</a>
       {user ? <AuthenticatedHeader user={user} /> : <PublicHeader />}
-      <main className={authenticated ? "account-main" : undefined} id="main-content">
-        <Section spacing="compact" surface="muted">
-          <SectionHeading
-            description="Search current opportunities by keyword, location, or confirmed work mode."
-            eyebrow="OPPORTUNITY EXPLORER"
-            title="Explore opportunities"
+      <main className={authenticated ? "account-main" : "layout-section layout-section--compact"} id="main-content">
+        <Container>
+          <JobsExplorer
+            authenticated={authenticated}
+            initialRecommendations={recommendations}
+            initialRecommendationsError={recommendationsError}
+            initialSchema={schema}
+            initialSchemaError={schemaError}
+            initialSchemaStatus={schemaStatus}
           />
-          <JobsExplorer />
-        </Section>
+        </Container>
       </main>
       {user ? <AuthenticatedMobileNavigation /> : <PublicFooter />}
     </div>

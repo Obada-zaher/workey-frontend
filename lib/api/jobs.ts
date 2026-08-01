@@ -4,7 +4,7 @@ import type { Job, JobAutocompleteFilterDefinition, JobBooleanFilterDefinition, 
 function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
 function stringValue(value: unknown): string | null { return typeof value === "string" && value.trim() ? value : null; }
 function optionFrom(value: unknown): JobFilterOption | null {
-  if (!isRecord(value) || (typeof value.value !== "string" && typeof value.value !== "number") || !stringValue(value.label)) return null;
+  if (!isRecord(value) || (typeof value.key !== "string" && typeof value.key !== "number") || !stringValue(value.value)) return null;
   return value as JobFilterOption;
 }
 function conditionFrom(value: unknown): JobFilterCondition | undefined {
@@ -54,12 +54,11 @@ function filterFrom(value: unknown): JobFilterDefinition | null {
 function sortFrom(value: unknown): JobSortOption | null {
   if (!isRecord(value)) return null;
   const key = stringValue(value.key);
-  const label = stringValue(value.label);
-  if (!key || !label) return null;
-  const parameters = isRecord(value.parameters)
-    ? Object.fromEntries(Object.entries(value.parameters).filter(([, parameterValue]) => typeof parameterValue === "string" || typeof parameterValue === "number" || typeof parameterValue === "boolean"))
-    : undefined;
-  return { ...value, key, label, ...(parameters ? { parameters } : {}) } as JobSortOption;
+  const optionValue = stringValue(value.value);
+  if (!key || !optionValue || !isRecord(value.parameters)) return null;
+  const parameters = Object.fromEntries(Object.entries(value.parameters).filter(([, parameterValue]) => typeof parameterValue === "string" || typeof parameterValue === "number" || typeof parameterValue === "boolean"));
+  if (!Object.keys(parameters).length) return null;
+  return { ...value, key, value: optionValue, parameters } as JobSortOption;
 }
 
 function warnUnsupportedSchema(version: unknown) {

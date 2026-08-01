@@ -33,8 +33,8 @@ export type JobFilterPrimitive = string | number | boolean;
 export type JobFilterOptionValue = string | number;
 
 export interface JobFilterOption {
-  value: JobFilterOptionValue;
-  label: string;
+  key: JobFilterOptionValue;
+  value: string;
   [field: string]: unknown;
 }
 
@@ -97,8 +97,8 @@ export type JobFilterDefinition = JobSingleSelectFilterDefinition | JobBooleanFi
 
 export interface JobSortOption {
   key: string;
-  label: string;
-  parameters?: Record<string, JobFilterPrimitive>;
+  value: string;
+  parameters: Record<string, JobFilterPrimitive>;
   default?: boolean;
   [field: string]: unknown;
 }
