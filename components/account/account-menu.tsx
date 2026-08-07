@@ -46,7 +46,7 @@ export function AccountMenu({ user }: { user: AuthenticatedUser }) {
         ref={triggerRef}
         type="button"
       >
-        <UserAvatar name={user.name} size="small" />
+        <UserAvatar avatarUrl={user.avatar_url} name={user.name} size="small" />
         <span className="account-menu__trigger-copy">
           <span>{user.name}</span>
           <small>{roleLabel}</small>
@@ -57,7 +57,7 @@ export function AccountMenu({ user }: { user: AuthenticatedUser }) {
       </button>
       <div aria-hidden={!isOpen} aria-label="Account menu" className="account-menu__panel" data-open={isOpen} id={menuId} role="menu">
         <div className="account-menu__identity">
-          <UserAvatar name={user.name} size="small" />
+          <UserAvatar avatarUrl={user.avatar_url} name={user.name} size="small" />
           <span><strong>{user.name}</strong><small>{roleLabel}</small></span>
         </div>
         <div className="account-menu__actions">

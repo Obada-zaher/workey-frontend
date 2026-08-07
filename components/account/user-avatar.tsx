@@ -15,7 +15,7 @@ export function UserAvatar({ avatarUrl = null, name, size = "medium" }: { avatar
   if (avatarUrl && failedUrl !== avatarUrl) return <span className={className}>
     {/* The backend image URL is dynamic and is not constrained to configured Next image domains. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img alt={`${name} avatar`} loading="lazy" onError={() => setFailedUrl(avatarUrl)} src={avatarUrl} />
+    <img alt={`${name} avatar`} loading="eager" onError={() => setFailedUrl(avatarUrl)} src={avatarUrl} />
   </span>;
   return <span aria-label={`${name} initials`} className={className}>{initials(name)}</span>;
 }

@@ -33,6 +33,7 @@ export interface AuthenticatedUser {
   status: LocalizedValue;
   email_verified_at: string | null;
   is_email_verified: boolean;
+  avatar_url: string | null;
   job_seeker_profile?: JobSeekerProfile;
   created_at: string | null;
 }

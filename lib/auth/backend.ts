@@ -22,7 +22,7 @@ function errorsFrom(value: unknown): ValidationErrors | undefined {
   return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
-export async function authBackendRequest<T>(path: string, options: { method: "GET" | "POST" | "PUT"; body?: object; token?: string; language?: string; query?: Record<string, string | number | boolean | undefined>; }) {
+export async function authBackendRequest<T>(path: string, options: { method: "GET" | "POST" | "PUT" | "DELETE"; body?: object; token?: string; language?: string; query?: Record<string, string | number | boolean | undefined>; }) {
   let response: Response;
   try {
     response = await fetch(endpoint(path, options.query), { method: options.method, cache: "no-store", headers: { Accept: "application/json", "Accept-Language": options.language === "ar" ? "ar" : "en", ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) }, ...(options.body ? { body: JSON.stringify(options.body) } : {}) });
@@ -30,6 +30,17 @@ export async function authBackendRequest<T>(path: string, options: { method: "GE
   let payload: Partial<ApiEnvelope<T>>;
   try { payload = await response.json() as Partial<ApiEnvelope<T>>; } catch { throw new AuthBackendError(502, "Authentication is temporarily unavailable."); }
   if (!response.ok || !payload.success) throw new AuthBackendError(response.status, typeof payload.message === "string" ? payload.message : "Authentication could not be completed.", typeof payload.code === "string" ? payload.code : undefined, errorsFrom(payload.errors), typeof payload.retry_after_seconds === "number" ? payload.retry_after_seconds : undefined);
+  return payload.data as T;
+}
+
+export async function authBackendFormDataRequest<T>(path: string, options: { method: "POST" | "PATCH"; formData: FormData; token?: string; language?: string; }) {
+  let response: Response;
+  try {
+    response = await fetch(endpoint(path), { method: options.method, cache: "no-store", headers: { Accept: "application/json", "Accept-Language": options.language === "ar" ? "ar" : "en", ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}) }, body: options.formData });
+  } catch { throw new AuthBackendError(503, "Profile photo is temporarily unavailable."); }
+  let payload: Partial<ApiEnvelope<T>>;
+  try { payload = await response.json() as Partial<ApiEnvelope<T>>; } catch { throw new AuthBackendError(502, "Profile photo is temporarily unavailable."); }
+  if (!response.ok || !payload.success) throw new AuthBackendError(response.status, typeof payload.message === "string" ? payload.message : "Profile photo could not be updated.", typeof payload.code === "string" ? payload.code : undefined, errorsFrom(payload.errors), typeof payload.retry_after_seconds === "number" ? payload.retry_after_seconds : undefined);
   return payload.data as T;
 }
 

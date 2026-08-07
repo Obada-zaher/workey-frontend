@@ -383,6 +383,54 @@ html[lang="ar"] .type-heading-1, html[lang="ar"] .type-heading-2, html[lang="ar"
 .company-card--mini p { font-size: var(--font-size-caption); }
 .company-card--mini .ui-badge { margin-block-start: var(--space-3); padding: var(--space-1) var(--space-2); font-size: var(--font-size-caption); }
 .account-home__empty-state { margin-block-start: var(--space-4); border: var(--border-width-default) solid var(--color-border-subtle); border-radius: var(--radius-large); background: var(--color-surface-muted); padding: var(--space-6); }
+.avatar-editor { display: grid; justify-items: start; gap: var(--space-2); }
+.avatar-editor__avatar { border: 0; border-radius: var(--radius-pill); background: transparent; cursor: pointer; padding: 0; }
+.avatar-editor__avatar:disabled { cursor: wait; }
+.avatar-editor__avatar:hover .user-avatar { border-color: var(--color-primary); box-shadow: var(--shadow-focus); }
+.avatar-editor__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.avatar-editor__change, .avatar-editor__remove { border: 0; background: transparent; color: var(--color-text-link); font-size: var(--font-size-caption); font-weight: var(--font-weight-semibold); cursor: pointer; padding: 0; }
+.avatar-editor__remove { color: var(--color-text-secondary); }
+.avatar-editor__change:hover, .avatar-editor__remove:hover { text-decoration: underline; }
+.avatar-editor__change:disabled, .avatar-editor__remove:disabled { color: var(--color-text-disabled); cursor: wait; text-decoration: none; }
+.avatar-editor__message { max-inline-size: 12rem; margin: 0; color: var(--color-success); font-size: var(--font-size-caption); line-height: var(--line-height-tight); }
+.avatar-editor__message--error { color: var(--color-danger); }
+.job-card { position: relative; overflow: hidden; gap: 0; padding: 0; }
+.job-card__media { position: relative; min-block-size: 4.5rem; overflow: hidden; background: radial-gradient(circle at 78% 28%, color-mix(in srgb, var(--color-primary) 72%, transparent), transparent 42%), linear-gradient(130deg, var(--color-primary-active), var(--color-secondary)); }
+.job-card__media img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.job-card__foreground { position: relative; z-index: 1; display: grid; gap: var(--space-3); padding: var(--space-5); }
+.job-card__identity { align-items: center; }
+.job-card__identity > .ui-badge { margin-inline-start: auto; white-space: nowrap; }
+.job-card__logo, .job-card__monogram { border: var(--border-width-default) solid color-mix(in srgb, var(--color-surface-elevated) 68%, transparent); box-shadow: var(--shadow-subtle); }
+.job-card__skills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.job-card__reason { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-body-small); }
+.job-card--explore { min-block-size: 10.5rem; background: var(--color-sidebar); color: var(--color-text-inverse); }
+.job-card--explore .job-card__media { position: absolute; inset: 0; min-block-size: 0; }
+.job-card--explore .job-card__media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgb(7 16 31 / 92%), rgb(7 16 31 / 76%) 55%, rgb(7 16 31 / 44%)); }
+.job-card--explore .job-card__foreground { min-block-size: 10.5rem; padding: var(--space-5) var(--space-6); }
+.job-card--explore .job-card__company, .job-card--explore .job-card__meta, .job-card--explore .job-card__reason, .job-card--explore .job-card__dates { color: color-mix(in srgb, var(--color-text-inverse) 80%, transparent); }
+.job-card--explore .job-card__title, .job-card--explore .job-card__title a { color: var(--color-text-inverse); }
+.job-card--explore .job-card__title a:hover, .job-card--explore .job-card__action { color: var(--color-primary-hover); }
+.job-card--explore .job-card__footer { border-color: color-mix(in srgb, var(--color-text-inverse) 22%, transparent); }
+.job-card--explore .job-card__logo { background: var(--color-surface-elevated); }
+.job-card--explore .job-card__monogram { background: var(--color-accent); color: var(--color-accent-foreground); }
+.company-card { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 0; padding: 0; }
+.company-card__cover { block-size: 7rem; overflow: hidden; background: radial-gradient(circle at 75% 20%, color-mix(in srgb, var(--color-primary) 64%, transparent), transparent 38%), linear-gradient(140deg, var(--color-secondary), var(--color-primary-active)); }
+.company-card__cover img { inline-size: 100%; block-size: 100%; object-fit: cover; }
+.company-card__logo { position: relative; z-index: 1; margin-block: calc(var(--space-5) * -1) var(--space-3); margin-inline-start: var(--space-5); }
+.company-card__logo .job-card__logo, .company-card__logo .job-card__monogram { inline-size: calc(var(--control-height-large) + var(--space-2)); block-size: calc(var(--control-height-large) + var(--space-2)); border: var(--border-width-strong) solid var(--color-surface-elevated); background: var(--color-surface-elevated); box-shadow: var(--shadow-card); }
+.company-card__content { display: grid; align-content: start; gap: var(--space-2); padding: 0 var(--space-5) var(--space-5); }
+.company-card__content h3, .company-card__content p { margin: 0; }
+.company-card__content .ui-badge { justify-self: start; margin-block-start: var(--space-2); }
+.company-card--mini { min-block-size: 0; padding: 0; text-align: start; }
+.company-card--mini .company-card__cover { block-size: calc(var(--space-11) + var(--space-2)); }
+.company-card--mini .company-card__logo { margin-inline-start: var(--space-4); }
+.company-card--mini .company-card__logo .job-card__logo, .company-card--mini .company-card__logo .job-card__monogram { inline-size: var(--control-height-medium); block-size: var(--control-height-medium); }
+.company-card--mini .company-card__content { gap: var(--space-1); padding: 0 var(--space-4) var(--space-4); }
+.company-card--mini .company-card__content h3 { margin: 0; font-size: var(--font-size-body-small); }
+.company-card--mini .company-card__content p { font-size: var(--font-size-caption); }
+.company-card--mini .company-card__content .ui-badge { margin-block-start: var(--space-2); }
+@media (min-width: 48rem) { .job-card--explore .job-card__foreground { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-6); } .job-card--explore .job-card__identity, .job-card--explore .job-card__content { grid-column: 1; } .job-card--explore .job-card__footer { grid-column: 2; grid-row: 1 / span 2; align-items: end; min-inline-size: 10rem; margin: 0; padding: 0; border: 0; } .job-card--explore .job-card__dates { text-align: end; } }
+@media (max-width: 47.99rem) { .job-card--explore .job-card__foreground { padding: var(--space-5); } .job-card__footer { align-items: flex-start; flex-direction: column; } }
 @keyframes workey-rise { from { opacity: 0; transform: translateY(var(--space-3)); } to { opacity: 1; transform: translateY(0); } }
 @keyframes account-home-carousel-slide { from { opacity: .45; transform: translateX(calc(0px - var(--space-4))); } to { opacity: 1; transform: translateX(0); } }
 @keyframes profile-progress-draw { from { stroke-dashoffset: var(--profile-progress-circumference); } to { stroke-dashoffset: var(--profile-progress-offset); } }
@@ -431,3 +479,47 @@ button.preview-control:not(:disabled) { background: var(--color-primary); border
   .surface-glass, .ui-card--glass, .account-header, .account-menu__panel { background: var(--color-surface-elevated); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ui-button:hover:not(:disabled), .ui-card--interactive:hover { transform: none; } }
+/* ========================================
+   Global Workey Scrollbar
+   ======================================== */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Chrome, Edge, Safari */
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  border: 2px solid var(--scrollbar-track);
+  border-radius: 9999px;
+  background: var(--scrollbar-thumb);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-active);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}
+
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: auto;
+  }
+}
