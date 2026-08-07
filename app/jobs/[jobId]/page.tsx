@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { CompanyIdentity } from "@/components/jobs/company-identity";
+import { JobDetailHeader } from "@/components/jobs/job-detail-header";
 import { JobDetailBackLink } from "@/components/jobs/job-detail-back-link";
 import { Container } from "@/components/layout/container";
 import { AuthenticatedHeader } from "@/components/navigation/authenticated-header";
@@ -84,7 +85,7 @@ export async function generateMetadata({ params }: JobPageProps): Promise<Metada
   }
 }
 
-function JobHeader({ job }: { job: Job }) {
+export function JobHeader({ job }: { job: Job }) {
   const company = companyName(job);
   const logoUrl = typeof job.company?.logo_url === "string" ? job.company.logo_url : null;
   const workMode = label(job.work_mode);
@@ -122,7 +123,7 @@ function CompanyPanel({ job }: { job: Job }) {
   const company = job.company;
   if (!company) return null;
   const name = companyName(job);
-  return <section className="job-detail__panel"><div className="job-detail__company-heading"><CompanyIdentity logoUrl={company.logo_url} name={name} /><div><p className="job-detail__eyebrow">COMPANY</p><h2>{name}</h2></div></div>{company.industry ? <p><strong>Industry:</strong> {company.industry}</p> : null}{company.location ? <p><strong>Location:</strong> {company.location}</p> : null}</section>;
+  return <section className="job-detail__panel"><div className="job-detail__company-heading"><CompanyIdentity logoUrl={company.logo_url} name={name} size="large" /><div><p className="job-detail__eyebrow">COMPANY</p><h2>{name}</h2></div></div>{company.industry ? <p><strong>Industry:</strong> {company.industry}</p> : null}{company.location ? <p><strong>Location:</strong> {company.location}</p> : null}</section>;
 }
 
 export default async function JobDetailPage({ params }: JobPageProps) {
@@ -146,7 +147,7 @@ export default async function JobDetailPage({ params }: JobPageProps) {
     <main className={user ? "account-main" : "layout-section"} id="main-content">
       <Container>
         <div className="job-detail__navigation"><JobDetailBackLink /><Link href={routes.explore}>Back to Explore</Link></div>
-        <JobHeader job={job} />
+        <JobDetailHeader job={job} />
         <div className="job-detail__layout">
           <article className="job-detail__main">
             <JobOverview job={job} />

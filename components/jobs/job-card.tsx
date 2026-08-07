@@ -22,7 +22,7 @@ export function JobCard({ job, recommendation, variant = "default" }: { job: Hom
   const companyName = typeof job.company?.name === "string" && job.company.name.trim() ? job.company.name : "Company";
   const logoUrl = job.company?.logo_url ?? null;
   const coverUrl = job.company?.cover_image_url ?? null;
-  const [coverFailed, setCoverFailed] = useState(false);
+  const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null);
   const workMode = localizedLabel(job.work_mode); const employmentType = localizedLabel(job.employment_type); const experience = detailed ? localizedLabel(job.experience_level) : null;
   const publishedAt = validDate(job.published_at); const published = formatDate(job.published_at); const deadlineAt = detailed ? validDate(job.application_deadline) : null; const deadline = detailed ? formatDate(job.application_deadline) : null;
   const skills = detailed ? safeSkills(job.skills).slice(0, 3) : [];
@@ -30,11 +30,12 @@ export function JobCard({ job, recommendation, variant = "default" }: { job: Hom
   const score = recommendation ? percentage(recommendation.score) : null;
   const reason = recommendation && Array.isArray(recommendation.reasons) ? recommendation.reasons.find((item) => typeof item === "string" && item.trim()) : null;
   const detailHref = `/jobs/${job.id}`;
+  const hasCover = Boolean(coverUrl && failedCoverUrl !== coverUrl);
 
-  return <article className={`job-card ui-card ui-card--interactive job-card--${variant}${coverUrl && !coverFailed ? " job-card--has-cover" : ""}`}>
-    <div aria-hidden="true" className="job-card__media">{coverUrl && !coverFailed ? <img alt="" loading="lazy" onError={() => setCoverFailed(true)} src={coverUrl} /> : null}</div>
+  return <article className={`job-card ui-card ui-card--interactive job-card--${variant} ${hasCover ? "job-card--has-cover" : "job-card--no-cover"}`}>
+    {hasCover && coverUrl ? <><div aria-hidden="true" className="job-card__media"><img alt="" loading="lazy" onError={() => setFailedCoverUrl(coverUrl)} src={coverUrl} /></div><div aria-hidden="true" className="job-card__scrim" /></> : null}
     <div className="job-card__foreground">
-      <header className="job-card__identity"><CompanyIdentity logoUrl={logoUrl} name={companyName} /><div className="job-card__title-group"><p className="job-card__company">{companyName}</p><h3 className="job-card__title"><Link aria-label={`View ${job.title} at ${companyName}`} href={detailHref}>{job.title}</Link></h3></div>{score !== null ? <Badge variant="primary">{score}% Match</Badge> : null}</header>
+      <header className="job-card__identity"><CompanyIdentity logoUrl={logoUrl} name={companyName} size={variant === "explore" ? "medium" : "small"} /><div className="job-card__title-group"><p className="job-card__company">{companyName}</p><h3 className="job-card__title"><Link aria-label={`View ${job.title} at ${companyName}`} href={detailHref}>{job.title}</Link></h3></div>{score !== null ? <Badge variant="primary">{score}% Match</Badge> : null}</header>
       <div className="job-card__content"><div className="job-card__meta">{job.location ? <span>{job.location}</span> : null}{workMode ? <Badge variant="primary">{workMode}</Badge> : null}{employmentType ? <Badge>{employmentType}</Badge> : null}{experience ? <Badge>{experience}</Badge> : null}</div>{skills.length || matchedSkills.length ? <div className="job-card__skills">{(matchedSkills.length ? matchedSkills : skills).map((skill) => <Badge key={skill.id}>{skill.name}</Badge>)}</div> : null}{reason ? <p className="job-card__reason">{reason}</p> : null}</div>
       <footer className="job-card__footer"><div className="job-card__dates">{published && publishedAt ? <time dateTime={publishedAt}>Published {published}</time> : null}{deadline && deadlineAt ? <time className={detailed && job.is_application_deadline_passed ? "job-card__deadline job-card__deadline--passed" : "job-card__deadline"} dateTime={deadlineAt}>{detailed && job.is_application_deadline_passed ? `Deadline passed ${deadline}` : `Deadline ${deadline}`}</time> : null}</div><Link className="job-card__action" href={detailHref}>View opportunity <span aria-hidden="true">→</span></Link></footer>
     </div>
