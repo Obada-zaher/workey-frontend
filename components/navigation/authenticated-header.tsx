@@ -9,7 +9,6 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { Logo } from "@/components/ui/logo";
 import { routes } from "@/config/routes";
 import type { AuthenticatedUser } from "@/lib/auth/types";
-import { BackButton } from "./back-button";
 
 const links = [
   { href: routes.authenticatedHome, label: "Home", matches: (pathname: string) => pathname === routes.authenticatedHome },
@@ -20,7 +19,6 @@ const links = [
 export function AuthenticatedHeader({ user }: { user: AuthenticatedUser }) {
   const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
-  const nestedAccountRoute = pathname.startsWith(`${routes.authenticatedHome}/`);
 
   useEffect(() => {
     const updateScrollState = () => setIsScrolled(window.scrollY > 8);
@@ -32,10 +30,7 @@ export function AuthenticatedHeader({ user }: { user: AuthenticatedUser }) {
   return (
     <header className={`account-header${isScrolled ? " account-header--scrolled" : ""}`}>
       <Container className="account-header__inner">
-        <div className="account-header__brand">
-          {nestedAccountRoute ? <BackButton /> : null}
-          <Logo href={routes.authenticatedHome} size="small" />
-        </div>
+        <div className="account-header__brand"><Logo href={routes.authenticatedHome} size="small" /></div>
         <nav aria-label="Authenticated navigation" className="account-header__nav">
           {links.map((link) => {
             const active = link.matches(pathname);
