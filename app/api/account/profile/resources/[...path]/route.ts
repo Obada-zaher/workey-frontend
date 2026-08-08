@@ -23,7 +23,14 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
   try {
     const contentType = request.headers.get("content-type") ?? "";
     if ((method === "POST" || method === "PATCH") && contentType.includes("multipart/form-data")) return NextResponse.json({ data: await authBackendFormDataRequest<unknown>(path, { method, token, language: request.headers.get("accept-language") ?? undefined, formData: await request.formData() }) }, { headers: noStore });
-    const body = method === "GET" || method === "DELETE" ? undefined : await request.json() as object;
+    let body: object | undefined;
+    if (method !== "GET" && method !== "DELETE") {
+      const text = await request.text();
+      if (text.trim()) {
+        try { body = JSON.parse(text) as object; }
+        catch { return NextResponse.json({ message: "Provide a valid JSON request body." }, { status: 400, headers: noStore }); }
+      }
+    }
     return NextResponse.json({ data: await authBackendRequest<unknown>(path, { method, token, body, language: request.headers.get("accept-language") ?? undefined }) }, { headers: noStore });
   } catch (error) { return failure(error); }
 }

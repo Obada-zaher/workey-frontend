@@ -22,8 +22,8 @@ export interface ProfileEducation { id: number; institution: string; degree: str
 export interface ProfileSkill { id: number; name: string; slug?: string; source_type?: ProfileSource; user_verified_at?: string | null; }
 export interface ProfessionalLink { type: { key: string; label: string }; url: string; }
 export interface ProfileAttentionItem { attention_key: string; title: string; description: string; priority: number; severity?: { key: string; label: string }; action?: { type?: { key: string; label: string }; target?: Record<string, unknown> }; target?: Record<string, unknown>; }
-export interface ProfileCVFile { id: number; original_name: string; mime_type: string; extension: string; size_bytes: number; operation?: { key: string; label: string }; stage?: { key: string; label: string }; progress?: { upload_completed?: boolean; text_extracted?: boolean; parsing_completed?: boolean; review_completed?: boolean }; next_action?: { type?: { key: string; label: string }; target?: { type?: string; id?: number }; is_actionable?: boolean }; confirmed_at?: string | null; can_use_for_application?: boolean; allowed_actions?: string[]; created_at?: string | null; updated_at?: string | null; }
-export interface ProfileCVSummary { status?: { key: string; label: string }; is_ready: boolean; pending_update?: unknown; allowed_actions: string[]; preview_url?: string | null; download_url?: string | null; }
+export type ProfileCVFile = import("@/lib/account/cv-types").CurrentCV | import("@/lib/account/cv-types").PendingCVUpdate;
+export type ProfileCVSummary = import("@/lib/account/cv-types").ProfileCVState;
 export interface CareerSummary { years_of_experience: number; experiences_count: number; education_count: number; skills_count: number; professional_links_count: number; availability?: { status?: { key: string; label: string }; available_from?: string | null; display_label?: string }; }
 
 export interface JobSeekerProfileDetail extends JobSeekerProfile {
@@ -37,8 +37,8 @@ export interface JobSeekerProfileDetail extends JobSeekerProfile {
   professional_links?: ProfessionalLink[];
   profile_completeness?: ProfileCompleteness;
   attention_items?: ProfileAttentionItem[];
-  current_cv?: ProfileCVFile | null;
-  pending_cv_update?: ProfileCVFile | null;
+  current_cv?: import("@/lib/account/cv-types").CurrentCV | null;
+  pending_cv_update?: import("@/lib/account/cv-types").PendingCVUpdate | null;
   cv?: ProfileCVSummary | null;
   allowed_actions?: string[];
 }
