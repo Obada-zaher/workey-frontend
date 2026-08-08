@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 
-type CompanyIdentitySize = "small" | "medium" | "large" | "hero";
+type CompanyIdentitySize = "small" | "card" | "medium" | "large" | "hero";
 type CompanyIdentityContext = "default" | "media";
 
 export function CompanyIdentity({ logoUrl, name, size = "medium", context = "default" }: { logoUrl?: string | null; name: string; size?: CompanyIdentitySize; context?: CompanyIdentityContext }) {

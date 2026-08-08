@@ -13,6 +13,7 @@ import type { AuthenticatedUser } from "@/lib/auth/types";
 const links = [
   { href: routes.authenticatedHome, label: "Home", matches: (pathname: string) => pathname === routes.authenticatedHome },
   { href: routes.explore, label: "Explore", matches: (pathname: string) => pathname.startsWith(routes.explore) || pathname.startsWith("/jobs/") },
+  { href: routes.applications, label: "Applications", matches: (pathname: string) => pathname.startsWith(routes.applications) },
   { href: routes.profile, label: "Profile", matches: (pathname: string) => pathname.startsWith(routes.profile) },
 ];
 
