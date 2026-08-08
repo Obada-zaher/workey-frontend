@@ -11,6 +11,7 @@ import {
   generateCVSuggestions,
   getCVReview,
   getCVSuggestions,
+  readyCVForConfirmation,
   rejectCVSuggestion,
   saveCVReviewDraft,
 } from "@/lib/account/cv-client";
@@ -129,6 +130,10 @@ export function CVWorkflowModal({
     try {
       let nextReview = await getCVReview(pending.id);
       setDraft(normalizeDraft(nextReview));
+      if (mode === "review" && nextReview.can_confirm) {
+        setAcknowledged(false);
+        setReviewStep("confirm");
+      }
       if (mode === "suggestions") {
         let items = suggestionsArray(await getCVSuggestions(pending.id));
         if (!items.length && nextReview.can_generate_suggestions) {
@@ -188,7 +193,8 @@ export function CVWorkflowModal({
   function prepareConfirmation() {
     if (!draft) return;
     void run("prepare", async () => {
-      const nextReview = await saveCVReviewDraft(pending.id, draft);
+      await saveCVReviewDraft(pending.id, draft);
+      const nextReview = await readyCVForConfirmation(pending.id);
       setReview(nextReview);
       setDraft(normalizeDraft(nextReview));
       setDirty(false);
@@ -208,7 +214,7 @@ export function CVWorkflowModal({
   }
 
   function confirmInitialCV() {
-    if (!review?.can_edit_draft || !acknowledged) return;
+    if (!review?.can_confirm || !acknowledged) return;
     void run("confirm", async () => {
       await confirmCV(pending.id);
       await onComplete();
@@ -270,12 +276,12 @@ export function CVWorkflowModal({
       <div>
         <Button disabled={Boolean(action)} onClick={safeClose} type="button" variant="ghost">Close</Button>
         {mode === "review" && !confirming ? <>
-          <Button loading={action === "save"} onClick={saveDraft} type="button" variant="outline">Save draft</Button>
-          <Button disabled={!review.can_edit_draft} loading={action === "prepare"} onClick={prepareConfirmation} type="button">Review final draft</Button>
+          <Button disabled={Boolean(action)} loading={action === "save"} onClick={saveDraft} type="button" variant="outline">Save draft</Button>
+          <Button disabled={Boolean(action) || !review.can_edit_draft} loading={action === "prepare"} onClick={prepareConfirmation} type="button">Review final draft</Button>
         </> : null}
         {confirming ? <>
-          <Button disabled={Boolean(action)} onClick={() => setReviewStep("edit")} type="button" variant="outline">Back to edit</Button>
-          <Button disabled={!acknowledged || !review.can_edit_draft} loading={action === "confirm"} onClick={confirmInitialCV} type="button">Confirm CV</Button>
+          {review.can_edit_draft ? <Button disabled={Boolean(action)} onClick={() => setReviewStep("edit")} type="button" variant="outline">Back to edit</Button> : null}
+          <Button disabled={Boolean(action) || !acknowledged || !review.can_confirm} loading={action === "confirm"} onClick={confirmInitialCV} type="button">Confirm CV</Button>
         </> : null}
         {mode === "suggestions" ? <Button disabled={!review.can_apply_suggestions} loading={action === "apply"} onClick={applySuggestions} type="button">Apply approved changes</Button> : null}
       </div>
@@ -286,6 +292,7 @@ export function CVWorkflowModal({
 function CVError({ error, onRefresh, refreshing }: { error: AccountApiError; onRefresh: () => void; refreshing: boolean }) {
   return <div className="cv-error" role="alert">
     <strong>{error.message}</strong>
+    {error.code ? <small>Code: {error.code}</small> : null}
     {error.errors ? <ul>{Object.values(error.errors).flat().map((message, index) => <li key={`${message}-${index}`}>{message}</li>)}</ul> : null}
     <Button loading={refreshing} onClick={onRefresh} size="small" type="button" variant="outline">Try again</Button>
   </div>;

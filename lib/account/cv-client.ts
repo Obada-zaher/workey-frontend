@@ -118,6 +118,10 @@ export function saveCVReviewDraft(id: number, draft: CVReviewDraft) {
   });
 }
 
+export function readyCVForConfirmation(id: number) {
+  return request<CVReview>(resource(`cv/${id}/ready-for-confirmation`), { method: "POST" });
+}
+
 export function getCVSuggestions(id: number) {
   return request<CVSuggestionsResult>(resource(`cv/${id}/suggestions`));
 }

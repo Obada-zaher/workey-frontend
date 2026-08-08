@@ -38,6 +38,9 @@ function actionsFor(file: ProfileCVFile): CVAllowedAction[] {
     case "review_draft":
       actions.push("edit_review_draft", "confirm_cv");
       break;
+    case "confirm_cv":
+      actions.push("confirm_cv");
+      break;
     case "generate_suggestions":
       actions.push("generate_suggestions");
       break;
@@ -70,6 +73,7 @@ function workflowStatus(pending: ProfileCVFile | null, current: ProfileCVFile | 
   if (parsing === "failed") return "failed";
   if (parsing === "uploaded" || parsing === "processing" || next === "wait_for_parsing") return "processing";
   if (next === "review_draft") return "review_required";
+  if (next === "confirm_cv" || (key(pending.review_mode) === "initial_import" && key(pending.review_status) === "ready_to_apply")) return "review_required";
   if (["generate_suggestions", "review_suggestions", "apply_suggestions"].includes(next)) return "suggestions_review_required";
   return current ? "confirmed" : "no_cv";
 }

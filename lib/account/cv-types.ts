@@ -139,6 +139,7 @@ export interface CVReview {
   review_status: CVLabel;
   next_action: CVLabel;
   can_edit_draft: boolean;
+  can_confirm: boolean;
   can_generate_suggestions: boolean;
   can_apply_suggestions: boolean;
   editable_sections: string[];
