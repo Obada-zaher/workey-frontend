@@ -31,7 +31,15 @@ async function handle(request: NextRequest, context: { params: Promise<{ path: s
         catch { return NextResponse.json({ message: "Provide a valid JSON request body." }, { status: 400, headers: noStore }); }
       }
     }
-    return NextResponse.json({ data: await authBackendRequest<unknown>(path, { method, token, body, language: request.headers.get("accept-language") ?? undefined }) }, { headers: noStore });
+    const query = path === "cv" && method === "GET"
+      ? Object.fromEntries(
+          ["include_archived", "per_page", "status", "page"].flatMap((key) => {
+            const value = request.nextUrl.searchParams.get(key);
+            return value === null ? [] : [[key, value]];
+          }),
+        )
+      : undefined;
+    return NextResponse.json({ data: await authBackendRequest<unknown>(path, { method, token, body, query, language: request.headers.get("accept-language") ?? undefined }) }, { headers: noStore });
   } catch (error) { return failure(error); }
 }
 export function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) { return handle(request, context, "GET"); }

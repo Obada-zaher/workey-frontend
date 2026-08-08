@@ -3,48 +3,390 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import {
+  AccountApiError,
+  acceptCVSuggestion,
+  applyCVSuggestions,
+  confirmCV,
+  generateCVSuggestions,
+  getCVReview,
+  getCVSuggestions,
+  rejectCVSuggestion,
+  saveCVReviewDraft,
+} from "@/lib/account/cv-client";
+import type {
+  CVReview,
+  CVReviewDraft,
+  CVSuggestion,
+  CVSuggestionsResult,
+  JsonValue,
+  PendingCVUpdate,
+} from "@/lib/account/cv-types";
 import { CVReviewDraftEditor } from "./cv-review-draft";
 import { CVStructuredValue, CVSummaryStats } from "./cv-structured-value";
-import { AccountApiError, acceptCVSuggestion, confirmCV, generateCVSuggestions, getCVFinalPreview, getCVReview, getCVSuggestions, readyForCVConfirmation, rejectCVSuggestion, saveCVReviewDraft } from "@/lib/account/cv-client";
-import type { CVReview, CVReviewDraft, CVSuggestion, CVSuggestionsResult, JsonValue, PendingCVUpdate } from "@/lib/account/cv-types";
 
-type WorkflowMode = "review" | "suggestions" | "confirm";
-const emptyDraft = (): CVReviewDraft => ({ profile: { phone: null, summary: null, location: null }, experience: [], education: [], skills: [] });
-function label(value?: { label?: string; value?: string; key?: string } | null) { return value?.label ?? value?.value ?? value?.key?.replaceAll("_", " ") ?? "Not available"; }
-function suggestionsArray(value: CVSuggestionsResult) { return Array.isArray(value) ? value : value.data; }
-function asObject(value: JsonValue | undefined): Record<string, JsonValue> | null { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, JsonValue> : null; }
+type WorkflowMode = "review" | "suggestions";
+type ReviewStep = "edit" | "confirm";
+
+const emptyDraft = (): CVReviewDraft => ({
+  profile: { phone: null, summary: null, location: null },
+  experience: [],
+  education: [],
+  skills: [],
+});
+
+function label(value?: { label?: string; value?: string; key?: string } | null) {
+  return value?.label ?? value?.value ?? value?.key?.replaceAll("_", " ") ?? "Not available";
+}
+
+function suggestionsArray(value: CVSuggestionsResult) {
+  return Array.isArray(value) ? value : value.data;
+}
+
+function asObject(value: JsonValue | undefined): Record<string, JsonValue> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, JsonValue>
+    : null;
+}
+
 function normalizeDraft(review: CVReview): CVReviewDraft {
-  const source = asObject((review.draft ?? review.reviewed_json ?? review.parsed_json) as JsonValue | undefined); if (!source) return emptyDraft();
+  const source = asObject(review.reviewed_json ?? review.parsed_json);
+  if (!source) return emptyDraft();
   const profile = asObject(source.profile) ?? {};
-  const experience = Array.isArray(source.experience) ? source.experience : Array.isArray(source.experiences) ? source.experiences : [];
+  const experience = Array.isArray(source.experience)
+    ? source.experience
+    : Array.isArray(source.experiences) ? source.experiences : [];
   const education = Array.isArray(source.education) ? source.education : [];
   const skills = Array.isArray(source.skills) ? source.skills : [];
-  return { profile: { phone: typeof profile.phone === "string" ? profile.phone : null, summary: typeof profile.summary === "string" ? profile.summary : null, location: typeof profile.location === "string" ? profile.location : null }, experience: experience.filter((item) => asObject(item)).map((item) => { const value = asObject(item)!; return { title: String(value.title ?? ""), company_name: String(value.company_name ?? ""), location: typeof value.location === "string" ? value.location : null, start_date: typeof value.start_date === "string" ? value.start_date : null, end_date: typeof value.end_date === "string" ? value.end_date : null, is_current: value.is_current === true, description: typeof value.description === "string" ? value.description : null }; }), education: education.filter((item) => asObject(item)).map((item) => { const value = asObject(item)!; return { institution: String(value.institution ?? ""), degree: typeof value.degree === "string" ? value.degree : null, field_of_study: typeof value.field_of_study === "string" ? value.field_of_study : null, start_date: typeof value.start_date === "string" ? value.start_date : null, end_date: typeof value.end_date === "string" ? value.end_date : null, description: typeof value.description === "string" ? value.description : null }; }), skills: skills.flatMap((item) => typeof item === "string" ? [item] : asObject(item) && typeof asObject(item)!.name === "string" ? [String(asObject(item)!.name)] : []) };
+
+  return {
+    profile: {
+      phone: typeof profile.phone === "string" ? profile.phone : null,
+      summary: typeof profile.summary === "string" ? profile.summary : null,
+      location: typeof profile.location === "string" ? profile.location : null,
+    },
+    experience: experience.filter((item) => asObject(item)).map((item) => {
+      const value = asObject(item)!;
+      return {
+        title: String(value.title ?? ""),
+        company_name: String(value.company_name ?? ""),
+        location: typeof value.location === "string" ? value.location : null,
+        start_date: typeof value.start_date === "string" ? value.start_date : null,
+        end_date: typeof value.end_date === "string" ? value.end_date : null,
+        is_current: value.is_current === true,
+        description: typeof value.description === "string" ? value.description : null,
+      };
+    }),
+    education: education.filter((item) => asObject(item)).map((item) => {
+      const value = asObject(item)!;
+      return {
+        institution: String(value.institution ?? ""),
+        degree: typeof value.degree === "string" ? value.degree : null,
+        field_of_study: typeof value.field_of_study === "string" ? value.field_of_study : null,
+        start_date: typeof value.start_date === "string" ? value.start_date : null,
+        end_date: typeof value.end_date === "string" ? value.end_date : null,
+        description: typeof value.description === "string" ? value.description : null,
+      };
+    }),
+    skills: skills.flatMap((item) => {
+      if (typeof item === "string") return [item];
+      const value = asObject(item);
+      return value && typeof value.name === "string" ? [value.name] : [];
+    }),
+  };
 }
 
-export function CVWorkflowModal({ mode, pending, onClose, onComplete, onNotice }: { mode: WorkflowMode; pending: PendingCVUpdate; onClose: () => void; onComplete: () => Promise<void>; onNotice: (message: string) => void }) {
-  const [review, setReview] = useState<CVReview | null>(null); const [draft, setDraft] = useState<CVReviewDraft | null>(null); const [suggestions, setSuggestions] = useState<CVSuggestion[]>([]); const [loading, setLoading] = useState(true); const [action, setAction] = useState<string | null>(null); const [error, setError] = useState<AccountApiError | null>(null); const [dirty, setDirty] = useState(false); const [acknowledged, setAcknowledged] = useState(false);
-  const safeClose = useCallback(() => { if (!dirty || window.confirm("Discard unsaved CV review changes?")) onClose(); }, [dirty, onClose]);
-  const load = useCallback(async () => { setLoading(true); setError(null); try { const nextReview = mode === "confirm" ? await getCVFinalPreview(pending.id) : await getCVReview(pending.id); setReview(nextReview); setDraft(normalizeDraft(nextReview)); if (mode === "suggestions") setSuggestions(suggestionsArray(await getCVSuggestions(pending.id))); } catch (reason) { setError(reason instanceof AccountApiError ? reason : new AccountApiError(500, "The CV workflow could not be loaded.")); } finally { setLoading(false); } }, [mode, pending.id]);
-  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
-  async function run(name: string, operation: () => Promise<void>) { setAction(name); setError(null); try { await operation(); } catch (reason) { setError(reason instanceof AccountApiError ? reason : new AccountApiError(500, "The CV action could not be completed.")); } finally { setAction(null); } }
-  async function reloadReviewAndSuggestions() { const nextReview = await getCVReview(pending.id); setReview(nextReview); setDraft(normalizeDraft(nextReview)); if (mode === "suggestions") setSuggestions(suggestionsArray(await getCVSuggestions(pending.id))); await onComplete(); }
-  function saveDraft() { if (!draft) return; void run("save", async () => { const nextReview = await saveCVReviewDraft(pending.id, draft); setReview(nextReview); setDraft(normalizeDraft(nextReview)); setDirty(false); onNotice("CV review draft saved."); }); }
-  function finishDraft() { if (!draft) return; void run("finish", async () => { const saved = await saveCVReviewDraft(pending.id, draft); setReview(saved); setDraft(normalizeDraft(saved)); setDirty(false); await readyForCVConfirmation(pending.id); await onComplete(); onNotice("Your reviewed CV is ready for final confirmation."); onClose(); }); }
-  function decide(suggestion: CVSuggestion, decision: "accept" | "reject", editedValue?: JsonValue) { void run(`suggestion-${suggestion.id}`, async () => { const updated = decision === "accept" ? await acceptCVSuggestion(suggestion.id, editedValue) : await rejectCVSuggestion(suggestion.id); setSuggestions((items) => items.map((item) => item.id === updated.id ? updated : item)); await reloadReviewAndSuggestions(); }); }
-  function refreshComparison() { void run("refresh-comparison", async () => { await generateCVSuggestions(pending.id); await reloadReviewAndSuggestions(); }); }
-  function confirm() { if (!review || !acknowledged) return; void run("confirm", async () => { const result = await confirmCV(pending.id); await onComplete(); onNotice(result.already_confirmed ? "Your CV was already confirmed." : `Your current CV is ready${result.applied_changes ? " and reviewed changes were applied" : ""}.`); onClose(); }); }
-  const title = mode === "review" ? "Initial CV review" : mode === "suggestions" ? "Review suggested changes" : "Review and confirm";
-  const validationValid = review?.validation_summary?.is_valid === true;
-  const canConfirm = review?.can_confirm === true && validationValid && acknowledged;
+export function CVWorkflowModal({
+  mode,
+  pending,
+  onClose,
+  onComplete,
+  onNotice,
+}: {
+  mode: WorkflowMode;
+  pending: PendingCVUpdate;
+  onClose: () => void;
+  onComplete: () => Promise<void>;
+  onNotice: (message: string) => void;
+}) {
+  const [review, setReview] = useState<CVReview | null>(null);
+  const [draft, setDraft] = useState<CVReviewDraft | null>(null);
+  const [suggestions, setSuggestions] = useState<CVSuggestion[]>([]);
+  const [reviewStep, setReviewStep] = useState<ReviewStep>("edit");
+  const [loading, setLoading] = useState(true);
+  const [action, setAction] = useState<string | null>(null);
+  const [error, setError] = useState<AccountApiError | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
 
-  return <Modal className="cv-workflow-modal" labelledBy="cv-workflow-title" onClose={safeClose}><header className="cv-modal-header"><div><span className="cv-status-badge">{label(review?.stage ?? pending.stage)}</span><h2 id="cv-workflow-title">{title}</h2><p>{mode === "review" ? "Review extracted information before anything becomes live profile data." : mode === "suggestions" ? "Choose which differences should update your profile." : "Review the final structured profile before confirming."}</p></div><button aria-label="Close CV workflow" disabled={Boolean(action)} onClick={safeClose} type="button">×</button></header>
-    <div className="cv-modal-content">{loading ? <div className="cv-modal-state" role="status"><span className="cv-spinner" />Loading CV workflow…</div> : null}{error ? <CVError error={error} onRefresh={error.code === "CV_PROFILE_CHANGED_SINCE_COMPARISON" ? refreshComparison : load} refreshing={Boolean(action)} /> : null}{review && !loading ? <><WorkflowDetails review={review} />{mode === "review" && draft ? <CVReviewDraftEditor draft={draft} editableSections={review.editable_sections} errors={error?.errors} onChange={(value) => { setDraft(value); setDirty(true); }} /> : null}{mode === "suggestions" ? <SuggestionsReview busy={action} onDecision={decide} suggestions={suggestions} /> : null}{mode === "confirm" ? <FinalReview acknowledged={acknowledged} onAcknowledged={setAcknowledged} review={review} /> : null}</> : null}</div>
-    {!loading && review ? <footer className="cv-modal-footer"><div>{mode !== "confirm" && review.reviewed_at ? <time dateTime={review.reviewed_at}>Last reviewed {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(review.reviewed_at))}</time> : null}</div><div><Button disabled={Boolean(action)} onClick={safeClose} type="button" variant="ghost">Close</Button>{mode === "review" ? <><Button loading={action === "save"} onClick={saveDraft} type="button" variant="outline">Save draft</Button><Button disabled={!review.can_edit_draft} loading={action === "finish"} onClick={finishDraft} type="button">Finish review</Button></> : null}{mode === "confirm" ? <Button disabled={!canConfirm} loading={action === "confirm"} onClick={confirm} type="button">Confirm current CV</Button> : null}</div></footer> : null}</Modal>;
+  const safeClose = useCallback(() => {
+    if (!dirty || window.confirm("Discard unsaved CV review changes?")) onClose();
+  }, [dirty, onClose]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let nextReview = await getCVReview(pending.id);
+      setDraft(normalizeDraft(nextReview));
+      if (mode === "suggestions") {
+        let items = suggestionsArray(await getCVSuggestions(pending.id));
+        if (!items.length && nextReview.can_generate_suggestions) {
+          items = suggestionsArray(await generateCVSuggestions(pending.id));
+          nextReview = await getCVReview(pending.id);
+        }
+        setSuggestions(items);
+      }
+      setReview(nextReview);
+    } catch (reason) {
+      setError(reason instanceof AccountApiError
+        ? reason
+        : new AccountApiError(500, "The CV workflow could not be loaded."));
+    } finally {
+      setLoading(false);
+    }
+  }, [mode, pending.id]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
+
+  async function run(name: string, operation: () => Promise<void>) {
+    setAction(name);
+    setError(null);
+    try {
+      await operation();
+    } catch (reason) {
+      setError(reason instanceof AccountApiError
+        ? reason
+        : new AccountApiError(500, "The CV action could not be completed."));
+    } finally {
+      setAction(null);
+    }
+  }
+
+  async function reloadReviewAndSuggestions() {
+    const nextReview = await getCVReview(pending.id);
+    setReview(nextReview);
+    setDraft(normalizeDraft(nextReview));
+    setSuggestions(suggestionsArray(await getCVSuggestions(pending.id)));
+    await onComplete();
+  }
+
+  function saveDraft() {
+    if (!draft) return;
+    void run("save", async () => {
+      const nextReview = await saveCVReviewDraft(pending.id, draft);
+      setReview(nextReview);
+      setDraft(normalizeDraft(nextReview));
+      setDirty(false);
+      onNotice("CV review draft saved.");
+    });
+  }
+
+  function prepareConfirmation() {
+    if (!draft) return;
+    void run("prepare", async () => {
+      const nextReview = await saveCVReviewDraft(pending.id, draft);
+      setReview(nextReview);
+      setDraft(normalizeDraft(nextReview));
+      setDirty(false);
+      setAcknowledged(false);
+      setReviewStep("confirm");
+      onNotice("Review the final draft, then confirm it explicitly.");
+    });
+  }
+
+  function decide(suggestion: CVSuggestion, decision: "accept" | "reject", editedValue?: JsonValue) {
+    void run(`suggestion-${suggestion.id}`, async () => {
+      await (decision === "accept"
+        ? acceptCVSuggestion(suggestion.id, editedValue)
+        : rejectCVSuggestion(suggestion.id));
+      await reloadReviewAndSuggestions();
+    });
+  }
+
+  function confirmInitialCV() {
+    if (!review?.can_edit_draft || !acknowledged) return;
+    void run("confirm", async () => {
+      await confirmCV(pending.id);
+      await onComplete();
+      onNotice("Your reviewed CV was confirmed and its approved data is now in your profile.");
+      onClose();
+    });
+  }
+
+  function applySuggestions() {
+    if (!review?.can_apply_suggestions) return;
+    void run("apply", async () => {
+      const result = await applyCVSuggestions(pending.id);
+      await onComplete();
+      onNotice(result.already_applied
+        ? "These profile decisions were already applied."
+        : `${result.applied_count} approved change${result.applied_count === 1 ? "" : "s"} applied. ${result.rejected_count} kept unchanged.`);
+      onClose();
+    });
+  }
+
+  const confirming = mode === "review" && reviewStep === "confirm";
+  const title = mode === "suggestions"
+    ? "Review suggested changes"
+    : confirming ? "Review and confirm" : "Initial CV review";
+
+  return <Modal className="cv-workflow-modal" labelledBy="cv-workflow-title" onClose={safeClose}>
+    <header className="cv-modal-header">
+      <div>
+        <span className="cv-status-badge">{label(review?.review_status ?? pending.review_status)}</span>
+        <h2 id="cv-workflow-title">{title}</h2>
+        <p>{mode === "suggestions"
+          ? "Only changes you approve will be applied to your profile."
+          : confirming
+            ? "This is the reviewed draft that will populate your profile."
+            : "Review extracted information before anything becomes live profile data."}</p>
+      </div>
+      <button aria-label="Close CV workflow" disabled={Boolean(action)} onClick={safeClose} type="button">×</button>
+    </header>
+
+    <div className="cv-modal-content">
+      {loading ? <div className="cv-modal-state" role="status"><span className="cv-spinner" />Loading CV workflow…</div> : null}
+      {error ? <CVError error={error} onRefresh={load} refreshing={Boolean(action)} /> : null}
+      {review && !loading ? <>
+        <WorkflowDetails review={review} />
+        {mode === "review" && !confirming && draft
+          ? <CVReviewDraftEditor draft={draft} editableSections={review.editable_sections} errors={error?.errors} onChange={(value) => { setDraft(value); setDirty(true); }} />
+          : null}
+        {confirming && draft
+          ? <FinalReview acknowledged={acknowledged} draft={draft} onAcknowledged={setAcknowledged} />
+          : null}
+        {mode === "suggestions"
+          ? <SuggestionsReview busy={action} onDecision={decide} suggestions={suggestions} />
+          : null}
+      </> : null}
+    </div>
+
+    {!loading && review ? <footer className="cv-modal-footer">
+      <div>{review.reviewed_at ? <time dateTime={review.reviewed_at}>Last reviewed {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(review.reviewed_at))}</time> : null}</div>
+      <div>
+        <Button disabled={Boolean(action)} onClick={safeClose} type="button" variant="ghost">Close</Button>
+        {mode === "review" && !confirming ? <>
+          <Button loading={action === "save"} onClick={saveDraft} type="button" variant="outline">Save draft</Button>
+          <Button disabled={!review.can_edit_draft} loading={action === "prepare"} onClick={prepareConfirmation} type="button">Review final draft</Button>
+        </> : null}
+        {confirming ? <>
+          <Button disabled={Boolean(action)} onClick={() => setReviewStep("edit")} type="button" variant="outline">Back to edit</Button>
+          <Button disabled={!acknowledged || !review.can_edit_draft} loading={action === "confirm"} onClick={confirmInitialCV} type="button">Confirm CV</Button>
+        </> : null}
+        {mode === "suggestions" ? <Button disabled={!review.can_apply_suggestions} loading={action === "apply"} onClick={applySuggestions} type="button">Apply approved changes</Button> : null}
+      </div>
+    </footer> : null}
+  </Modal>;
 }
 
-function CVError({ error, onRefresh, refreshing }: { error: AccountApiError; onRefresh: () => void; refreshing: boolean }) { const known = error.code === "CV_PROFILE_CHANGED_SINCE_COMPARISON"; return <div className="cv-error" role="alert"><strong>{known ? "Your profile changed after this CV was compared." : error.message}</strong>{error.errors ? <ul>{Object.values(error.errors).flat().map((message, index) => <li key={`${message}-${index}`}>{message}</li>)}</ul> : null}<Button loading={refreshing} onClick={onRefresh} size="small" type="button" variant="outline">{known ? "Refresh comparison" : "Try again"}</Button></div>; }
-function WorkflowDetails({ review }: { review: CVReview }) { const stats = review.comparison_summary; return <details className="cv-workflow-details"><summary>Workflow details</summary><div className="cv-detail-grid">{[["Operation", label(review.operation)], ["Stage", label(review.stage)], ["Parsing", label(review.parsing_status)], ["Review mode", label(review.review_mode)], ["Review status", label(review.review_status)], ["Next action", label(review.next_action)]].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}</div>{stats ? <div className="cv-comparison-stats">{Object.entries(stats).map(([key, value]) => <span key={key}><strong>{value}</strong>{key.replaceAll("_", " ")}</span>)}</div> : null}{review.change_summary ? <div><h3>Change summary</h3><CVStructuredValue value={review.change_summary} /></div> : null}{review.allowed_actions?.length ? <p className="cv-muted">Available actions: {review.allowed_actions.join(", ").replaceAll("_", " ")}</p> : null}</details>; }
-function SuggestionsReview({ busy, onDecision, suggestions }: { busy: string | null; onDecision: (suggestion: CVSuggestion, decision: "accept" | "reject", editedValue?: JsonValue) => void; suggestions: CVSuggestion[] }) { return <section className="cv-suggestions"><div className="cv-callout">Information missing from the uploaded CV is kept in your profile; absence is not treated as a deletion.</div>{suggestions.length ? suggestions.map((suggestion) => <SuggestionCard busy={busy === `suggestion-${suggestion.id}`} key={suggestion.id} onDecision={onDecision} suggestion={suggestion} />) : <div className="cv-modal-state">No suggested changes are waiting for review.</div>}</section>; }
-function SuggestionCard({ busy, onDecision, suggestion }: { busy: boolean; onDecision: (suggestion: CVSuggestion, decision: "accept" | "reject", editedValue?: JsonValue) => void; suggestion: CVSuggestion }) { const [editing, setEditing] = useState(false); const proposed = suggestion.editable_value ?? suggestion.proposed_value ?? suggestion.new_value; const [edited, setEdited] = useState(() => typeof proposed === "string" ? proposed : JSON.stringify(proposed, null, 2)); const allowed = suggestion.allowed_decisions ?? (suggestion.suggestion_type.key === "ignore" ? ["ignore"] : suggestion.suggestion_type.key === "add" ? ["accept_add", "ignore", "edit"] : [suggestion.suggestion_type.key === "merge" ? "accept_merge" : "accept_update", "keep_current", "edit"]); function acceptEdited() { try { const value = typeof proposed === "string" ? edited : JSON.parse(edited) as JsonValue; onDecision(suggestion, "accept", value); } catch { /* Keep editor open until valid JSON. */ } } return <article className={`cv-suggestion cv-suggestion--${suggestion.suggestion_type.key}`}><header><span>{label(suggestion.suggestion_type)}</span><div><strong>{label(suggestion.display_group)}</strong><small>{label(suggestion.status)}</small></div></header><div className="cv-comparison"><section><h4>Current</h4><CVStructuredValue value={suggestion.current_value ?? suggestion.old_value} /></section><section><h4>Proposed</h4><CVStructuredValue value={proposed} /></section></div>{editing ? <label className="cv-edit-value"><span>Edit proposed value{typeof proposed === "object" ? " (JSON)" : ""}</span><textarea onChange={(event) => setEdited(event.target.value)} rows={6} value={edited} /></label> : null}<footer>{allowed.some((item) => item.startsWith("accept_")) && suggestion.can_accept ? <Button loading={busy} onClick={() => onDecision(suggestion, "accept")} size="small" type="button">Use proposed</Button> : null}{allowed.includes("keep_current") || allowed.includes("ignore") ? <Button disabled={busy || !suggestion.can_reject} onClick={() => onDecision(suggestion, "reject")} size="small" type="button" variant="outline">{allowed.includes("keep_current") ? "Keep current" : "Ignore"}</Button> : null}{allowed.includes("edit") && suggestion.can_edit ? editing ? <Button loading={busy} onClick={acceptEdited} size="small" type="button" variant="secondary">Save edited value</Button> : <Button disabled={busy} onClick={() => setEditing(true)} size="small" type="button" variant="ghost">Edit</Button> : null}</footer></article>; }
-function FinalReview({ acknowledged, onAcknowledged, review }: { acknowledged: boolean; onAcknowledged: (value: boolean) => void; review: CVReview }) { const finalProfile = review.final_profile ?? review.reviewed_json ?? review.draft ?? null; return <div className="cv-final-review"><div className="cv-final-hero"><span aria-hidden="true">✓</span><strong>Your reviewed data is ready</strong><p>Review the final structured profile before confirming.</p></div><CVSummaryStats value={finalProfile as JsonValue} />{review.validation_summary ? <section className={review.validation_summary.is_valid ? "cv-validation cv-validation--valid" : "cv-validation cv-validation--invalid"}><h3>{review.validation_summary.is_valid ? "Validation complete" : "Confirmation is blocked"}</h3>{review.validation_summary.errors.length ? <ul>{review.validation_summary.errors.map((item, index) => <li key={index}>{typeof item === "string" ? item : item.message ?? item.field ?? "Validation error"}</li>)}</ul> : <p>The final profile passed backend validation.</p>}</section> : null}<section className="cv-final-profile"><h3>Final profile</h3><CVStructuredValue value={finalProfile as JsonValue} /></section><label className="cv-acknowledgement"><input checked={acknowledged} onChange={(event) => onAcknowledged(event.target.checked)} type="checkbox" />I reviewed the information above</label></div>; }
+function CVError({ error, onRefresh, refreshing }: { error: AccountApiError; onRefresh: () => void; refreshing: boolean }) {
+  return <div className="cv-error" role="alert">
+    <strong>{error.message}</strong>
+    {error.errors ? <ul>{Object.values(error.errors).flat().map((message, index) => <li key={`${message}-${index}`}>{message}</li>)}</ul> : null}
+    <Button loading={refreshing} onClick={onRefresh} size="small" type="button" variant="outline">Try again</Button>
+  </div>;
+}
+
+function WorkflowDetails({ review }: { review: CVReview }) {
+  return <details className="cv-workflow-details">
+    <summary>Workflow details</summary>
+    <div className="cv-detail-grid">
+      {[
+        ["Parsing", label(review.parsing_status)],
+        ["Review mode", label(review.review_mode)],
+        ["Review status", label(review.review_status)],
+        ["Next action", label(review.next_action)],
+      ].map(([name, value]) => <div key={name}><span>{name}</span><strong>{value}</strong></div>)}
+    </div>
+  </details>;
+}
+
+function SuggestionsReview({
+  busy,
+  onDecision,
+  suggestions,
+}: {
+  busy: string | null;
+  onDecision: (suggestion: CVSuggestion, decision: "accept" | "reject", editedValue?: JsonValue) => void;
+  suggestions: CVSuggestion[];
+}) {
+  return <section className="cv-suggestions">
+    <div className="cv-callout">Information missing from the uploaded CV is kept in your profile; absence is not treated as a deletion.</div>
+    {suggestions.length
+      ? suggestions.map((suggestion) => <SuggestionCard busy={busy === `suggestion-${suggestion.id}`} key={suggestion.id} onDecision={onDecision} suggestion={suggestion} />)
+      : <div className="cv-modal-state">No profile differences were found. The workflow is ready to apply.</div>}
+  </section>;
+}
+
+function SuggestionCard({
+  busy,
+  onDecision,
+  suggestion,
+}: {
+  busy: boolean;
+  onDecision: (suggestion: CVSuggestion, decision: "accept" | "reject", editedValue?: JsonValue) => void;
+  suggestion: CVSuggestion;
+}) {
+  const proposed = suggestion.user_edited_value ?? suggestion.new_value;
+  const [editing, setEditing] = useState(false);
+  const [edited, setEdited] = useState(() => JSON.stringify(proposed, null, 2));
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function acceptEdited() {
+    try {
+      const value = JSON.parse(edited) as JsonValue;
+      setEditError(null);
+      onDecision(suggestion, "accept", value);
+    } catch {
+      setEditError("Enter valid JSON matching the proposed value structure.");
+    }
+  }
+
+  return <article className={`cv-suggestion cv-suggestion--${suggestion.suggestion_type.key}`}>
+    <header>
+      <span>{label(suggestion.suggestion_type)}</span>
+      <div><strong>{label(suggestion.display_group)}</strong><small>{label(suggestion.status)}</small></div>
+    </header>
+    <div className="cv-comparison">
+      <section><h4>Current</h4><CVStructuredValue value={suggestion.old_value} /></section>
+      <section><h4>Proposed</h4><CVStructuredValue value={proposed} /></section>
+    </div>
+    {suggestion.reason ? <p className="cv-muted">{suggestion.reason}</p> : null}
+    {typeof suggestion.confidence_score === "number" ? <p className="cv-muted">Confidence {Math.round(suggestion.confidence_score * 100)}%</p> : null}
+    {editing ? <label className="cv-edit-value">
+      <span>Edit proposed value (JSON)</span>
+      <textarea aria-invalid={Boolean(editError)} onChange={(event) => setEdited(event.target.value)} rows={6} value={edited} />
+      {editError ? <small role="alert">{editError}</small> : null}
+    </label> : null}
+    <footer>
+      {suggestion.can_accept ? <Button loading={busy} onClick={() => onDecision(suggestion, "accept")} size="small" type="button">Use proposed</Button> : null}
+      {suggestion.can_reject ? <Button disabled={busy} onClick={() => onDecision(suggestion, "reject")} size="small" type="button" variant="outline">Keep current</Button> : null}
+      {suggestion.can_edit ? editing
+        ? <Button loading={busy} onClick={acceptEdited} size="small" type="button" variant="secondary">Save edited value</Button>
+        : <Button disabled={busy} onClick={() => setEditing(true)} size="small" type="button" variant="ghost">Edit &amp; accept</Button>
+        : null}
+      {!suggestion.is_actionable ? <span className="cv-muted">Matched — no action needed</span> : null}
+    </footer>
+  </article>;
+}
+
+function FinalReview({
+  acknowledged,
+  draft,
+  onAcknowledged,
+}: {
+  acknowledged: boolean;
+  draft: CVReviewDraft;
+  onAcknowledged: (value: boolean) => void;
+}) {
+  return <div className="cv-final-review">
+    <div className="cv-final-hero"><span aria-hidden="true">✓</span><strong>Your reviewed data is ready</strong><p>Nothing is applied until you confirm below.</p></div>
+    <CVSummaryStats value={draft as unknown as JsonValue} />
+    <section className="cv-final-profile"><h3>Final reviewed profile</h3><CVStructuredValue value={draft as unknown as JsonValue} /></section>
+    <label className="cv-acknowledgement"><input checked={acknowledged} onChange={(event) => onAcknowledged(event.target.checked)} type="checkbox" />I reviewed this information and want to add it to my profile</label>
+  </div>;
+}

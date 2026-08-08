@@ -39,6 +39,7 @@ export interface JobSeekerProfileDetail extends JobSeekerProfile {
   attention_items?: ProfileAttentionItem[];
   current_cv?: import("@/lib/account/cv-types").CurrentCV | null;
   pending_cv_update?: import("@/lib/account/cv-types").PendingCVUpdate | null;
+  cv_files?: import("@/lib/account/cv-types").ProfileCVFile[];
   cv?: ProfileCVSummary | null;
   allowed_actions?: string[];
 }
