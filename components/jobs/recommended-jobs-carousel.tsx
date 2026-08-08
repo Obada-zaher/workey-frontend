@@ -85,7 +85,7 @@ export function RecommendedJobsCarousel({ jobs }: { jobs: RecommendedJob[] }) {
       ) : null}
       <div className={gridClassName} key={`${startIndex}-${cardsPerView}`}>
         {visibleJobs.map((job) => (
-          <JobCard job={job} key={job.id} />
+          <JobCard job={job} key={job.id} variant="compact" />
         ))}
       </div>
       {canRotate ? (

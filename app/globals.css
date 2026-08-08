@@ -397,7 +397,6 @@ html[lang="ar"] .type-heading-1, html[lang="ar"] .type-heading-2, html[lang="ar"
 .job-card { position: relative; overflow: hidden; gap: 0; padding: 0; }
 .job-card__media { position: relative; min-block-size: 4.5rem; overflow: hidden; }
 .job-card__media img { inline-size: 100%; block-size: 100%; object-fit: cover; }
-.job-card__scrim { display: none; }
 .job-card__foreground { position: relative; z-index: 1; display: grid; gap: var(--space-3); padding: var(--space-5); }
 .job-card__identity { align-items: center; }
 .job-card__identity > .ui-badge { margin-inline-start: auto; white-space: nowrap; }
@@ -406,20 +405,6 @@ html[lang="ar"] .type-heading-1, html[lang="ar"] .type-heading-2, html[lang="ar"
 .job-card__reason { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-body-small); }
 .job-card--explore { min-block-size: 10.5rem; }
 .job-card--explore .job-card__foreground { min-block-size: 10.5rem; padding: var(--space-5) var(--space-6); }
-.job-card--explore.job-card--has-cover { --job-cover-foreground: rgb(255 255 255 / 96%); --job-cover-foreground-muted: rgb(255 255 255 / 82%); --job-cover-scrim-strong: rgb(7 16 31 / 91%); --job-cover-scrim-medium: rgb(7 16 31 / 76%); --job-cover-scrim-soft: rgb(7 16 31 / 52%); --job-cover-chip-background: rgb(7 16 31 / 68%); --job-cover-chip-border: rgb(255 255 255 / 18%); background: var(--color-sidebar); color: var(--job-cover-foreground); }
-.job-card--explore.job-card--has-cover .job-card__media { position: absolute; inset: 0; min-block-size: 0; }
-.job-card--explore.job-card--has-cover .job-card__scrim { position: absolute; z-index: 0; inset: 0; display: block; background: linear-gradient(90deg, var(--job-cover-scrim-strong) 0%, var(--job-cover-scrim-medium) 52%, var(--job-cover-scrim-soft) 100%), linear-gradient(180deg, rgb(7 16 31 / 8%), rgb(7 16 31 / 45%)); }
-.job-card--explore.job-card--has-cover .job-card__foreground { min-block-size: 10.5rem; }
-.job-card--explore.job-card--has-cover .job-card__company, .job-card--explore.job-card--has-cover .job-card__meta, .job-card--explore.job-card--has-cover .job-card__reason, .job-card--explore.job-card--has-cover .job-card__dates { color: var(--job-cover-foreground-muted); }
-.job-card--explore.job-card--has-cover .job-card__title, .job-card--explore.job-card--has-cover .job-card__title a { color: var(--job-cover-foreground); text-shadow: 0 1px 2px rgb(0 0 0 / 35%); }
-.job-card--explore.job-card--has-cover .job-card__title a:hover, .job-card--explore.job-card--has-cover .job-card__action { color: var(--color-primary-hover); }
-.job-card--explore.job-card--has-cover .job-card__footer { border-color: var(--job-cover-chip-border); }
-.job-card--explore.job-card--has-cover .job-card__meta > .ui-badge, .job-card--explore.job-card--has-cover .job-card__skills .ui-badge { border: var(--border-width-default) solid var(--job-cover-chip-border); background: var(--job-cover-chip-background); color: var(--job-cover-foreground); }
-.job-card--explore.job-card--has-cover .job-card__identity > .ui-badge { border: var(--border-width-default) solid var(--color-primary); background: var(--color-primary); color: var(--color-primary-foreground); }
-.job-card--explore.job-card--has-cover .job-card__logo { border-color: rgb(255 255 255 / 72%); background: rgb(255 255 255 / 92%); }
-.job-card--explore.job-card--has-cover .job-card__monogram { border-color: var(--job-cover-chip-border); background: var(--color-accent); color: var(--color-accent-foreground); }
-.job-card--explore.job-card--has-cover .job-card__action { border-radius: var(--radius-small); background: var(--job-cover-chip-background); padding: var(--space-2) var(--space-3); }
-.job-card--explore.job-card--has-cover .job-card__action:hover { background: rgb(7 16 31 / 82%); text-decoration: none; }
 .company-card { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 0; padding: 0; }
 .company-card__cover { block-size: 7rem; overflow: hidden; background: radial-gradient(circle at 75% 20%, color-mix(in srgb, var(--color-primary) 64%, transparent), transparent 38%), linear-gradient(140deg, var(--color-secondary), var(--color-primary-active)); }
 .company-card__cover img { inline-size: 100%; block-size: 100%; object-fit: cover; }
@@ -577,3 +562,283 @@ button.preview-control:not(:disabled) { background: var(--color-primary); border
     scrollbar-color: auto;
   }
 }
+/* ========================================
+   Modern Job Card Surface
+   ======================================== */
+
+.job-card.ui-card {
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--color-border-default) 35%,
+      transparent
+    );
+
+  border-radius: 1rem;
+
+  box-shadow:
+    0 2px 8px rgb(22 32 51 / 4%);
+
+  transition:
+    transform var(--duration-normal) var(--easing-standard),
+    box-shadow var(--duration-normal) var(--easing-standard),
+    border-color var(--duration-normal) var(--easing-standard);
+}
+
+.job-card.ui-card--interactive:hover {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--color-primary) 20%,
+      var(--color-border-default)
+    );
+
+  box-shadow:
+    0 8px 24px rgb(22 32 51 / 7%);
+
+  transform: translateY(-1px);
+}
+
+/* Dark theme */
+:root[data-theme="dark"] .job-card.ui-card {
+  border-color: rgb(170 185 255 / 10%);
+
+  box-shadow:
+    0 2px 10px rgb(0 0 0 / 14%);
+}
+
+:root[data-theme="dark"] .job-card.ui-card--interactive:hover {
+  border-color: rgb(138 161 255 / 24%);
+
+  box-shadow:
+    0 10px 26px rgb(0 0 0 / 20%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .job-card.ui-card {
+    border-color: rgb(170 185 255 / 10%);
+    box-shadow: 0 2px 10px rgb(0 0 0 / 14%);
+  }
+
+  :root:not([data-theme]) .job-card.ui-card--interactive:hover {
+    border-color: rgb(138 161 255 / 24%);
+    box-shadow: 0 10px 26px rgb(0 0 0 / 20%);
+  }
+}
+/* Remove edge halo / seam from image job cards */
+/* JobCard cover styling is defined by the media-strip rules below. */
+
+
+/* =========================================
+   Workey Job Cover — clean full-card overlay
+   ========================================= */
+
+/* Image must fill the exact clipped card */
+/* The scrim must cover EVERY pixel of the card */
+/* =========================================
+   LIGHT THEME
+   Full-card base veil + directional protection
+   ========================================= */
+
+.job-card--explore.job-card--has-cover .job-card__scrim {
+  background:
+    /* Directional protection behind text */
+    linear-gradient(
+      90deg,
+      rgb(251 252 254 / 68%) 0%,
+      rgb(251 252 254 / 46%) 38%,
+      rgb(251 252 254 / 22%) 68%,
+      rgb(251 252 254 / 8%) 100%
+    ),
+
+    /* IMPORTANT:
+       this second layer covers 100% of the image,
+       including all corners and edges */
+    rgb(251 252 254 / 14%);
+}
+
+/* Do not let ui-card show a different colored border
+   around photographic cards */
+.job-card--has-cover.ui-card {
+  border-color: color-mix(
+    in srgb,
+    var(--color-surface) 75%,
+    transparent
+  );
+}
+
+/* Hover must not inject the normal ui-card background */
+.job-card--has-cover.ui-card--interactive:hover {
+  background: var(--color-surface);
+}
+
+/* =========================================
+   LIGHT THEME
+   Brighter / cleaner but image stays visible
+   ========================================= */
+
+.job-card--explore.job-card--has-cover .job-card__scrim {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(255 255 255 / 72%) 0%,
+      rgb(255 255 255 / 44%) 38%,
+      rgb(255 255 255 / 18%) 68%,
+      rgb(255 255 255 / 6%) 100%
+    ),
+    /* full-card layer — DO NOT REMOVE */
+    rgb(255 255 255 / 10%);
+}
+
+
+/* =========================================
+   DARK THEME
+   Slightly darker / richer
+   ========================================= */
+
+:root[data-theme="dark"]
+  .job-card--explore.job-card--has-cover
+  .job-card__scrim {
+  background:
+    linear-gradient(
+      90deg,
+      rgb(4 10 22 / 84%) 0%,
+      rgb(4 10 22 / 66%) 42%,
+      rgb(4 10 22 / 40%) 72%,
+      rgb(4 10 22 / 20%) 100%
+    ),
+    /* full-card layer — DO NOT REMOVE */
+    rgb(4 10 22 / 24%);
+}
+
+
+/* =========================================
+   SYSTEM DARK
+   ========================================= */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme])
+    .job-card--explore.job-card--has-cover
+    .job-card__scrim {
+    background:
+      linear-gradient(
+        90deg,
+        rgb(4 10 22 / 84%) 0%,
+        rgb(4 10 22 / 66%) 42%,
+        rgb(4 10 22 / 40%) 72%,
+        rgb(4 10 22 / 20%) 100%
+      ),
+      rgb(4 10 22 / 24%);
+  }
+}
+
+
+/* =========================================
+   MOBILE LIGHT
+   ========================================= */
+
+@media (max-width: 47.99rem) {
+  .job-card--explore.job-card--has-cover
+    .job-card__scrim {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 62%) 0%,
+        rgb(255 255 255 / 40%) 55%,
+        rgb(255 255 255 / 22%) 100%
+      ),
+      rgb(255 255 255 / 10%);
+  }
+}
+
+
+/* =========================================
+   MOBILE DARK
+   ========================================= */
+
+@media (max-width: 47.99rem) {
+  :root[data-theme="dark"]
+    .job-card--explore.job-card--has-cover
+    .job-card__scrim {
+    background:
+      linear-gradient(
+        180deg,
+        rgb(4 10 22 / 78%) 0%,
+        rgb(4 10 22 / 64%) 55%,
+        rgb(4 10 22 / 46%) 100%
+      ),
+      rgb(4 10 22 / 22%);
+  }
+}
+
+/* Job Card media-strip architecture. The card is the only outer clipping boundary. */
+.job-card.ui-card { display: flex; flex-direction: column; overflow: hidden; border-color: color-mix(in srgb, var(--color-border-default) 32%, transparent); border-radius: var(--radius-extra-large); background: var(--color-surface); box-shadow: 0 2px 8px rgb(22 32 51 / 4%); }
+.job-card.ui-card--interactive:hover { background: var(--color-surface); border-color: color-mix(in srgb, var(--color-primary) 18%, var(--color-border-default)); box-shadow: 0 8px 22px rgb(22 32 51 / 8%); transform: translateY(-1px); }
+.job-card__media { position: relative; z-index: auto; order: -1; inline-size: 100%; block-size: 4.5rem; min-block-size: 4.5rem; overflow: hidden; background: var(--color-surface-muted); }
+.job-card--explore .job-card__media { block-size: 6rem; min-block-size: 6rem; }
+.job-card__media img { inline-size: 100%; block-size: 100%; object-fit: cover; transform: none; transition: transform var(--duration-normal) var(--easing-standard); }
+.job-card.ui-card--interactive:hover .job-card__media img { transform: scale(1.02); }
+.job-card__media-logo { position: absolute; inset-inline-start: var(--space-5); inset-block-end: var(--space-4); display: flex; max-inline-size: min(45%, 10rem); }
+.job-card__foreground { position: static; z-index: auto; display: grid; gap: var(--space-3); min-block-size: 0; padding: var(--space-5); color: var(--color-text-primary); }
+.job-card--explore .job-card__foreground { display: grid; min-block-size: 0; padding: var(--space-5) var(--space-6); }
+.job-card__identity { align-items: flex-start; }
+.job-card__identity .company-identity { margin-inline-end: var(--space-2); }
+.job-card__company, .job-card__meta, .job-card__reason, .job-card__dates { color: var(--color-text-secondary); }
+.job-card__title, .job-card__title a { color: var(--color-text-primary); text-shadow: none; }
+.job-card__title a:hover, .job-card__action { color: var(--color-text-link); }
+.job-card__footer { border-color: var(--color-border-subtle); }
+.job-card--has-cover .job-card__scrim { display: none; }
+.job-card--has-cover .job-card__media::after { content: none; }
+.job-card--has-cover .job-card__meta > .ui-badge, .job-card--has-cover .job-card__skills .ui-badge { border: 0; background: var(--color-surface-muted); color: var(--color-text-secondary); }
+.job-card--has-cover .job-card__action { border-radius: 0; background: transparent; padding: 0; }
+.job-card--has-cover .job-card__action:hover { background: transparent; text-decoration: underline; }
+.company-identity { --company-logo-height: 2.625rem; --company-logo-width: 6.25rem; inline-size: var(--company-logo-width); block-size: var(--company-logo-height); flex: 0 1 auto; display: inline-flex; align-items: center; justify-content: flex-start; overflow: visible; background: transparent; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 16%)); }
+.company-identity img { inline-size: auto; block-size: auto; max-inline-size: 100%; max-block-size: 100%; object-fit: contain; }
+.company-identity--small { --company-logo-height: 2rem; --company-logo-width: 4.5rem; }
+.company-identity--medium { --company-logo-height: 2.625rem; --company-logo-width: 6.25rem; }
+.company-identity--large { --company-logo-height: 3.375rem; --company-logo-width: 8rem; }
+.company-identity--hero { --company-logo-height: 4.5rem; --company-logo-width: 10rem; }
+.company-identity--media { box-sizing: content-box; border-radius: var(--radius-medium); background: color-mix(in srgb, var(--color-surface-elevated) 72%, transparent); box-shadow: var(--shadow-subtle); padding: var(--space-3) var(--space-4); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.company-identity--monogram { inline-size: var(--company-logo-height); justify-content: center; border-radius: var(--radius-medium); background: var(--color-accent); color: var(--color-accent-foreground); font-size: var(--font-size-label); font-weight: var(--font-weight-bold); padding: 0; }
+.company-card--has-cover .company-card__cover::after { background: rgb(255 255 255 / 6%); }
+.company-card__logo { margin-block: calc(var(--space-6) * -1) var(--space-3); }
+.company-card__logo .company-identity { --company-logo-height: 3.75rem; --company-logo-width: 8rem; }
+.company-card--mini .company-card__logo .company-identity { --company-logo-height: 2.75rem; --company-logo-width: 5.5rem; }
+.company-card__logo .company-identity:not(.company-identity--monogram) { background: color-mix(in srgb, var(--color-surface-elevated) 72%, transparent); box-shadow: var(--shadow-subtle); padding: var(--space-3) var(--space-4); }
+.job-detail__identity .company-identity--hero { --company-logo-height: 4.5rem; --company-logo-width: 10rem; }
+.job-detail__company-heading .company-identity--large { --company-logo-height: 3.375rem; --company-logo-width: 8rem; }
+@media (min-width: 48rem) { .job-card--explore .job-card__foreground { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-6); } .job-card--explore .job-card__identity, .job-card--explore .job-card__content { grid-column: 1; } .job-card--explore .job-card__footer { grid-column: 2; grid-row: 1 / span 2; flex-direction: column; align-items: end; justify-content: space-between; min-inline-size: 10rem; margin: 0; padding: 0; border: 0; } .job-card--explore .job-card__dates { text-align: end; } }
+@media (max-width: 47.99rem) { .job-card--explore .job-card__media { block-size: 6.25rem; min-block-size: 6.25rem; } .job-card--explore .job-card__foreground { padding: var(--space-5); } .job-card__media-logo { inset-inline-start: var(--space-4); inset-block-end: var(--space-3); max-inline-size: min(48%, 7rem); } .company-identity--media { padding: var(--space-2) var(--space-3); } }
+:root[data-theme="dark"] .job-card.ui-card { border-color: rgb(170 185 255 / 10%); box-shadow: 0 2px 10px rgb(0 0 0 / 14%); }
+:root[data-theme="dark"] .job-card.ui-card--interactive:hover { border-color: rgb(138 161 255 / 24%); box-shadow: 0 8px 22px rgb(0 0 0 / 20%); }
+:root[data-theme="dark"] .job-card--has-cover .job-card__media::after, :root[data-theme="dark"] .company-card--has-cover .company-card__cover::after { content: ""; position: absolute; inset: 0; background: rgb(4 10 22 / 12%); pointer-events: none; }
+:root[data-theme="dark"] .company-identity--media, :root[data-theme="dark"] .company-card__logo .company-identity:not(.company-identity--monogram) { background: color-mix(in srgb, var(--color-surface-elevated) 62%, transparent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .job-card--has-cover .job-card__media::after, :root:not([data-theme]) .company-card--has-cover .company-card__cover::after { content: ""; position: absolute; inset: 0; background: rgb(4 10 22 / 12%); pointer-events: none; } :root:not([data-theme]) .company-identity--media, :root:not([data-theme]) .company-card__logo .company-identity:not(.company-identity--monogram) { background: color-mix(in srgb, var(--color-surface-elevated) 62%, transparent); } }
+.job-card--explore.job-card--has-cover .job-card__media { position: relative; inset: auto; z-index: auto; min-block-size: 6rem; border-radius: 0; }
+.job-card--explore.job-card--has-cover .job-card__foreground { position: static; z-index: auto; min-block-size: 0; }
+.job-card--explore.job-card--has-cover .job-card__title, .job-card--explore.job-card--has-cover .job-card__title a { color: var(--color-text-primary); text-shadow: none; }
+.job-card--explore.job-card--has-cover .job-card__company, .job-card--explore.job-card--has-cover .job-card__meta, .job-card--explore.job-card--has-cover .job-card__reason, .job-card--explore.job-card--has-cover .job-card__dates { color: var(--color-text-secondary); }
+.job-card--explore.job-card--has-cover .job-card__footer { border-color: var(--color-border-subtle); }
+
+/* Final company-media polish: intrinsic PNG logos and taller, single-layer strips. */
+.job-card__media { block-size: 5.75rem; min-block-size: 5.75rem; }
+.job-card--compact .job-card__media { block-size: 6rem; min-block-size: 6rem; }
+.job-card--explore .job-card__media, .job-card--explore.job-card--has-cover .job-card__media { block-size: 7.5rem; min-block-size: 7.5rem; }
+.job-card__media::after { content: ""; position: absolute; z-index: 0; inset: 0; background: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(255 255 255 / 12%)); pointer-events: none; }
+.job-card__media-logo { z-index: 1; }
+.company-identity { inline-size: fit-content; block-size: fit-content; max-inline-size: var(--company-logo-width); max-block-size: var(--company-logo-height); }
+.company-identity img { inline-size: auto; block-size: auto; max-inline-size: var(--company-logo-width); max-block-size: var(--company-logo-height); }
+.company-identity--small { --company-logo-height: 2.25rem; --company-logo-width: 5.75rem; }
+.company-identity--medium { --company-logo-height: 3rem; --company-logo-width: 8.25rem; }
+.company-identity--large { --company-logo-height: 3.625rem; --company-logo-width: 9.25rem; }
+.company-identity--hero { --company-logo-height: 4.75rem; --company-logo-width: 11.5rem; }
+.company-identity--media { max-inline-size: calc(var(--company-logo-width) + var(--space-7)); max-block-size: none; }
+.company-identity--monogram { inline-size: var(--company-logo-height); block-size: var(--company-logo-height); }
+.company-card--has-cover .company-card__cover { block-size: 8rem; }
+.company-card--mini .company-card__cover { block-size: 6.5rem; }
+.company-card__logo .company-identity, .company-card--mini .company-card__logo .company-identity { inline-size: fit-content; block-size: fit-content; }
+.job-detail__header--has-cover .job-detail__scrim { background: linear-gradient(180deg, rgb(255 255 255 / 5%), rgb(255 255 255 / 12%)); }
+:root[data-theme="dark"] .job-card__media::after { background: linear-gradient(180deg, rgb(4 10 22 / 12%), rgb(4 10 22 / 22%)); }
+:root[data-theme="dark"] .job-detail__header--has-cover .job-detail__scrim { background: linear-gradient(180deg, rgb(4 10 22 / 12%), rgb(4 10 22 / 22%)); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .job-card__media::after { background: linear-gradient(180deg, rgb(4 10 22 / 12%), rgb(4 10 22 / 22%)); } :root:not([data-theme]) .job-detail__header--has-cover .job-detail__scrim { background: linear-gradient(180deg, rgb(4 10 22 / 12%), rgb(4 10 22 / 22%)); } }
+@media (max-width: 47.99rem) { .job-card--explore .job-card__media, .job-card--explore.job-card--has-cover .job-card__media { block-size: 6.5rem; min-block-size: 6.5rem; } .job-card--compact .job-card__media { block-size: 5.5rem; min-block-size: 5.5rem; } .company-identity--medium { --company-logo-height: 2.625rem; --company-logo-width: 7rem; } .company-identity--hero { --company-logo-height: 4.25rem; --company-logo-width: 10rem; } }

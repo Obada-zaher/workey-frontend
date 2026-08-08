@@ -4,6 +4,7 @@ import { DashboardPanel } from "@/components/account/dashboard-panel";
 import { AccountSectionHeading } from "@/components/account/account-section-heading";
 import { ProfileProgressRing } from "@/components/account/profile-progress-ring";
 import { CompanyCard } from "@/components/companies/company-card";
+import { CompanyIdentity } from "@/components/jobs/company-identity";
 import { RecommendedJobsCarousel } from "@/components/jobs/recommended-jobs-carousel";
 import { AuthBackendError } from "@/lib/auth/backend";
 import { getAccountHome } from "@/lib/account/server";
@@ -115,9 +116,7 @@ function AccountHome({ home }: { home: JobSeekerHomeData }) {
 
                 return (
                   <Link className="account-home__latest-item" href={`${routes.explore}/${job.id}`} key={job.id}>
-                    <span aria-hidden="true" className="account-home__latest-logo">
-                      {(job.company.name ?? "Company").slice(0, 2).toUpperCase()}
-                    </span>
+                    <CompanyIdentity logoUrl={job.company.logo_url} name={job.company.name ?? "Company"} size="small" />
                     <span className="account-home__latest-main">
                       <strong>{job.title}</strong>
                       <span>
