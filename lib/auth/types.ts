@@ -10,17 +10,41 @@ export interface JobSeekerProfile {
   portfolio_url: string | null;
   linkedin_url: string | null;
   github_url: string | null;
+  city?: ProfileCity | null;
+  availability_status?: "available_now" | "available_from_date" | "not_available" | null;
+  available_from?: string | null;
 }
+
+export interface ProfileCity { id: number; code: string; name: string; country_code: string; }
+export interface ProfileSource { key: string; value: string; }
+export interface ProfileExperience { id: number; title: string; company_name: string; location: string | null; start_date: string | null; end_date: string | null; is_current: boolean; description: string | null; source_type?: ProfileSource; user_verified_at?: string | null; }
+export interface ProfileEducation { id: number; institution: string; degree: string | null; field_of_study: string | null; start_date: string | null; end_date: string | null; description: string | null; source_type?: ProfileSource; user_verified_at?: string | null; }
+export interface ProfileSkill { id: number; name: string; slug?: string; source_type?: ProfileSource; user_verified_at?: string | null; }
+export interface ProfessionalLink { type: { key: string; label: string }; url: string; }
+export interface ProfileAttentionItem { attention_key: string; title: string; description: string; priority: number; severity?: { key: string; label: string }; action?: { type?: { key: string; label: string }; target?: Record<string, unknown> }; target?: Record<string, unknown>; }
+export interface ProfileCVFile { id: number; original_name: string; mime_type: string; extension: string; size_bytes: number; operation?: { key: string; label: string }; stage?: { key: string; label: string }; progress?: { upload_completed?: boolean; text_extracted?: boolean; parsing_completed?: boolean; review_completed?: boolean }; next_action?: { type?: { key: string; label: string }; target?: { type?: string; id?: number }; is_actionable?: boolean }; confirmed_at?: string | null; can_use_for_application?: boolean; allowed_actions?: string[]; created_at?: string | null; updated_at?: string | null; }
+export interface ProfileCVSummary { status?: { key: string; label: string }; is_ready: boolean; pending_update?: unknown; allowed_actions: string[]; preview_url?: string | null; download_url?: string | null; }
+export interface CareerSummary { years_of_experience: number; experiences_count: number; education_count: number; skills_count: number; professional_links_count: number; availability?: { status?: { key: string; label: string }; available_from?: string | null; display_label?: string }; }
 
 export interface JobSeekerProfileDetail extends JobSeekerProfile {
   user?: AuthenticatedUser;
-  experiences?: Array<unknown>;
-  education?: Array<unknown>;
-  skills?: Array<{ id: number; name?: string | null }>;
+  identity?: { name: string; email: string; headline: string | null; summary: string | null; phone: string | null; location: string | null; city?: ProfileCity | null; avatar?: { type: string; initials: string; url: string | null } };
+  career_summary?: CareerSummary;
+  professional_profile?: { summary: string | null; phone: string | null; portfolio_url: string | null; linkedin_url: string | null; github_url: string | null };
+  experiences?: ProfileExperience[];
+  education?: ProfileEducation[];
+  skills?: ProfileSkill[];
+  professional_links?: ProfessionalLink[];
+  profile_completeness?: ProfileCompleteness;
+  attention_items?: ProfileAttentionItem[];
+  current_cv?: ProfileCVFile | null;
+  pending_cv_update?: ProfileCVFile | null;
+  cv?: ProfileCVSummary | null;
+  allowed_actions?: string[];
 }
 
 export interface ProfileCompletenessItem { key: string; label: string; target: { type: string; value: string }; }
-export interface ProfileCompleteness { percentage: number; is_complete: boolean; missing_items_count: number; missing_items: ProfileCompletenessItem[]; next_item: ProfileCompletenessItem | null; }
+export interface ProfileCompleteness { percentage: number; is_complete: boolean; completed_items_count?: number; missing_items_count: number; completed_items?: ProfileCompletenessItem[]; missing_items: ProfileCompletenessItem[]; recommended_items?: ProfileCompletenessItem[]; next_item: ProfileCompletenessItem | null; }
 export interface HomeAction { type?: string; title?: string; subtitle?: string; deadline?: string | null; date_time?: string | null; target?: { type: string; value?: string; id?: number }; action_label?: string; }
 export interface RecommendedJob extends HomeJob { match?: { score?: number | null }; }
 export interface JobSeekerHomeData { viewer: { type: "job_seeker"; is_authenticated: true; id: number; name: string; avatar_url: string | null }; profile_completeness: ProfileCompleteness; required_action: HomeAction | null; recommended_jobs: RecommendedJob[]; featured_companies: FeaturedCompany[]; latest_jobs: HomeJob[]; meta?: { recommendations_available?: boolean; recommendations?: { available?: boolean } }; }

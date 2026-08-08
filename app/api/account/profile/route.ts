@@ -6,7 +6,7 @@ import type { JobSeekerProfileDetail } from "@/lib/auth/types";
 export const dynamic = "force-dynamic";
 
 const noStore = { "Cache-Control": "no-store, private" };
-const editableFields = ["headline", "summary", "phone", "location", "portfolio_url", "linkedin_url", "github_url"] as const;
+const editableFields = ["name", "headline", "summary", "phone", "location", "city_id", "availability_status", "available_from", "portfolio_url", "linkedin_url", "github_url"] as const;
 type EditableField = typeof editableFields[number];
 
 function errorResponse(error: unknown) {
@@ -28,8 +28,8 @@ export async function PUT(request: NextRequest) {
   try { body = await request.json(); } catch { return NextResponse.json({ message: "Provide valid profile fields." }, { status: 400, headers: noStore }); }
   if (!body || typeof body !== "object") return NextResponse.json({ message: "Provide valid profile fields." }, { status: 400, headers: noStore });
   const input = body as Record<string, unknown>;
-  if (Object.keys(input).some((key) => !editableFields.includes(key as EditableField)) || Object.values(input).some((value) => value !== null && typeof value !== "string")) return NextResponse.json({ message: "Provide valid profile fields." }, { status: 400, headers: noStore });
-  const payload = Object.fromEntries(editableFields.flatMap((field) => field in input ? [[field, input[field] as string | null]] : []));
+  if (Object.keys(input).some((key) => !editableFields.includes(key as EditableField)) || Object.entries(input).some(([key, value]) => value !== null && typeof value !== "string" && !(key === "city_id" && typeof value === "number"))) return NextResponse.json({ message: "Provide valid profile fields." }, { status: 400, headers: noStore });
+  const payload = Object.fromEntries(editableFields.flatMap((field) => field in input ? [[field, input[field] as string | number | null]] : []));
   if (!Object.keys(payload).length) return NextResponse.json({ message: "Choose at least one profile field to update." }, { status: 400, headers: noStore });
   try { return NextResponse.json({ data: await authBackendRequest<JobSeekerProfileDetail>("profile", { method: "PUT", token: await tokenFor(request), body: payload, language: request.headers.get("accept-language") ?? undefined }) }, { headers: noStore }); } catch (error) { return errorResponse(error); }
 }
